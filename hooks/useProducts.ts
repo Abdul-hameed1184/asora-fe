@@ -50,7 +50,6 @@ import {
   type CreateProductPayload,
   type UpdateProductPayload,
 } from "@/lib/api/products.api";
-import { ProductService } from "@/services/product.service";
 import { useApiQuery } from "./useApiQuery";
 
 // ---------------------------------------------------------------------------

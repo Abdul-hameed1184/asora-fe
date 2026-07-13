@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   Search,
   Bell,
@@ -18,10 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 import ProductDrawer from "@/app/admin/components/ProductDrawer";
 import { useProductDrawerStore } from "@/lib/stores/useProductDrawerStore";
-import { useAdminProducts } from "@/hooks/useProducts";
-import type { ProductFilters, ProductListResponse } from "@/lib/api/products.api";
-import { productKeys } from "@/lib/queries/products.keys";
-import { ProductService } from "@/services/product.service";
+import { useAdminProducts, useDeleteProduct } from "@/hooks/useProducts";
+import type { ProductFilters } from "@/lib/api/products.api";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -31,7 +28,6 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
 
-  const qc = useQueryClient();
   const { openNew, openManageStock } = useProductDrawerStore();
 
   // ── Build filters from UI state ──────────────────────────────────────────
@@ -54,46 +50,8 @@ export default function InventoryPage() {
     isPlaceholderData,
   } = useAdminProducts(filters);
 
-  // ── Delete — calls ProductService directly with optimistic cache update ─
-  const deleteProduct = useMutation({
-    mutationFn: (id: string) => ProductService.delete(id),
-
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: productKeys.lists() });
-      const previousLists = qc.getQueriesData<ProductListResponse>({
-        queryKey: productKeys.lists(),
-      });
-      qc.setQueriesData<ProductListResponse>(
-        { queryKey: productKeys.lists() },
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            data: old.data.filter((p) => p.id !== id),
-            pagination: {
-              ...old.pagination,
-              total: Math.max(0, old.pagination.total - 1),
-            },
-          };
-        }
-      );
-      return { previousLists };
-    },
-
-    onError: (_err, _id, context) => {
-      const { previousLists } = context as {
-        previousLists: [unknown, ProductListResponse | undefined][];
-      };
-      for (const [key, snapshot] of previousLists) {
-        qc.setQueryData(key as string[], snapshot);
-      }
-    },
-
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: productKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: productKeys.lists() });
-    },
-  });
+  // ── Delete — optimistic cache update handled inside useDeleteProduct ─────
+  const deleteProduct = useDeleteProduct();
 
   const products = data?.data ?? [];
   const pagination = data?.pagination;

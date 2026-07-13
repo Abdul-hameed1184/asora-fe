@@ -1,10 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, Shield, Edit2, CheckCircle2 } from "lucide-react";
+import {
+  User,
+  Shield,
+  Edit2,
+  CheckCircle2,
+  MapPin,
+  Plus,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 import { useAuthStore } from "@/lib/stores/useAuthStore";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiMutation } from "@/hooks/useApiMutation";
+import { UserService } from "@/services/user.service";
+import { QUERY_KEYS } from "@/hooks/queryKeys";
+import type { Address, CreateAddressDto, UpdateProfileDto, User as UserProfile } from "@/types/user.type";
+import type { ApiSuccess } from "@/types/api.types";
 
 interface ProfileForm {
   firstName: string;
@@ -13,6 +28,25 @@ interface ProfileForm {
   phoneNumber: string;
 }
 
+const EMPTY_ADDRESS: CreateAddressDto = {
+  address: "",
+  street: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  country: "",
+  isDefault: false,
+};
+
+const ADDRESS_FIELDS: { label: string; key: keyof Omit<CreateAddressDto, "isDefault" | "userId"> }[] = [
+  { label: "Address", key: "address" },
+  { label: "Street", key: "street" },
+  { label: "City", key: "city" },
+  { label: "State / Province", key: "state" },
+  { label: "ZIP / Postal Code", key: "zipCode" },
+  { label: "Country", key: "country" },
+];
+
 const QUICK_LINKS = [
   { label: "My Orders", href: "/orders" },
   { label: "Wishlist", href: "/wishlist" },
@@ -20,17 +54,81 @@ const QUICK_LINKS = [
 ];
 
 export default function ProfilePage() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const router = useRouter();
 
+  // ── Profile form ────────────────────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState<ProfileForm>({
-    firstName: user?.firstName ?? "",
-    lastName: user?.lastName ?? "",
-    email: user?.email ?? "",
-    phoneNumber: user?.phoneNumber ?? "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
   });
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        firstName: user.firstName ?? "",
+        lastName: user.lastName ?? "",
+        email: user.email ?? "",
+        phoneNumber: user.phoneNumber ?? "",
+      });
+    }
+  }, [user]);
+
+  // ── Address section ─────────────────────────────────────────────────────────
+  const [addressForm, setAddressForm] = useState<CreateAddressDto>(EMPTY_ADDRESS);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+
+  const { data: addressesData, isLoading: addressesLoading } = useApiQuery<
+    ApiSuccess<Address[]>
+  >({
+    queryKey: QUERY_KEYS.addresses,
+    queryFn: () => UserService.getAddresses(),
+    enabled: !!user,
+  });
+
+  const addresses = addressesData?.data ?? [];
+
+  const { mutate: addAddress, isPending: addingAddress } = useApiMutation<
+    unknown,
+    CreateAddressDto
+  >({
+    mutationFn: (data) => UserService.addAddress(data),
+    invalidateKeys: [QUERY_KEYS.addresses],
+  });
+
+  const { mutate: updateAddress, isPending: updatingAddress } = useApiMutation<
+    unknown,
+    { id: string; data: Partial<CreateAddressDto> }
+  >({
+    mutationFn: ({ id, data }) => UserService.updateAddress(id, data),
+    invalidateKeys: [QUERY_KEYS.addresses],
+  });
+
+  const { mutate: deleteAddress } = useApiMutation<unknown, string>({
+    mutationFn: (id) => UserService.deleteAddress(id),
+    invalidateKeys: [QUERY_KEYS.addresses],
+  });
+
+  const { mutate: updateProfile, isPending: updatingProfile } = useApiMutation<
+    ApiSuccess<UserProfile>,
+    UpdateProfileDto
+  >({
+    mutationFn: (data) => UserService.updateProfile(data),
+  });
+
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -54,10 +152,30 @@ export default function ProfilePage() {
   const initials = `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase();
 
   const handleSave = () => {
-    // Wire to update-profile API endpoint when available
-    setSaved(true);
-    setEditing(false);
-    setTimeout(() => setSaved(false), 3000);
+    updateProfile(
+      {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phoneNumber: form.phoneNumber,
+        profilePicture: "",
+        bio: "",
+      },
+      {
+        onSuccess: (data) => {
+          if (user) {
+            setUser({
+              ...user,
+              firstName: data.data.firstName,
+              lastName: data.data.lastName,
+              phoneNumber: data.data.phoneNumber,
+            });
+          }
+          setSaved(true);
+          setEditing(false);
+          setTimeout(() => setSaved(false), 3000);
+        },
+      }
+    );
   };
 
   const handleCancel = () => {
@@ -79,12 +197,59 @@ export default function ProfilePage() {
     (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const FIELDS: { label: string; key: keyof ProfileForm; type: string }[] = [
+  const updateAddressField = (key: keyof CreateAddressDto) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setAddressForm((prev) => ({
+        ...prev,
+        [key]: key === "isDefault" ? (e.target as HTMLInputElement).checked : e.target.value,
+      }));
+
+  const openAddForm = () => {
+    setAddressForm(EMPTY_ADDRESS);
+    setEditingAddressId(null);
+    setShowAddressForm(true);
+  };
+
+  const openEditForm = (address: Address) => {
+    setAddressForm({
+      address: address.address ?? "",
+      street: address.street,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+      country: address.country,
+      isDefault: address.isDefault,
+    });
+    setEditingAddressId(address.id);
+    setShowAddressForm(true);
+  };
+
+  const closeAddressForm = () => {
+    setShowAddressForm(false);
+    setEditingAddressId(null);
+    setAddressForm(EMPTY_ADDRESS);
+  };
+
+  const handleAddressSave = () => {
+    const payload = { ...addressForm, userId: user.id };
+    if (editingAddressId) {
+      updateAddress(
+        { id: editingAddressId, data: payload },
+        { onSuccess: closeAddressForm }
+      );
+    } else {
+      addAddress(payload, { onSuccess: closeAddressForm });
+    }
+  };
+
+  const FIELDS: { label: string; key: keyof ProfileForm; type: string; readOnly?: boolean }[] = [
     { label: "First Name", key: "firstName", type: "text" },
     { label: "Last Name", key: "lastName", type: "text" },
-    { label: "Email Address", key: "email", type: "email" },
+    { label: "Email Address", key: "email", type: "email", readOnly: true },
     { label: "Phone Number", key: "phoneNumber", type: "tel" },
   ];
+
+  const isSavingAddress = addingAddress || updatingAddress;
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +267,6 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Left — Avatar card + nav */}
           <div className="lg:col-span-1 space-y-4">
-            {/* Avatar + name */}
             <div className="border border-border p-8 text-center">
               <div className="w-20 h-20 bg-primary/10 border-2 border-primary/20 rounded-full flex items-center justify-center mx-auto mb-5">
                 <span className="font-garamound text-2xl font-semibold text-primary">
@@ -120,7 +284,6 @@ export default function ProfilePage() {
               </span>
             </div>
 
-            {/* Navigation */}
             <nav className="border border-border divide-y divide-border">
               {QUICK_LINKS.map((link) => (
                 <Link
@@ -172,7 +335,6 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Success banner */}
               {saved && (
                 <div className="flex items-center gap-2 mb-6 p-3 bg-success/5 border border-success/20">
                   <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
@@ -183,12 +345,15 @@ export default function ProfilePage() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                {FIELDS.map(({ label, key, type }) => (
+                {FIELDS.map(({ label, key, type, readOnly }) => (
                   <div key={key}>
                     <label className="font-courier text-[9px] tracking-[0.2em] uppercase text-foreground/40 block mb-2">
                       {label}
+                      {readOnly && editing && (
+                        <span className="ml-2 text-foreground/25 normal-case not-italic">· cannot be changed</span>
+                      )}
                     </label>
-                    {editing ? (
+                    {editing && !readOnly ? (
                       <input
                         type={type}
                         value={form[key]}
@@ -210,9 +375,10 @@ export default function ProfilePage() {
                 <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-border">
                   <button
                     onClick={handleSave}
-                    className="bg-primary text-white font-courier text-[9px] tracking-[0.2em] uppercase px-8 py-3 hover:bg-primary/90 transition-colors"
+                    disabled={updatingProfile}
+                    className="bg-primary text-white font-courier text-[9px] tracking-[0.2em] uppercase px-8 py-3 hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
-                    Save Changes
+                    {updatingProfile ? "Saving…" : "Save Changes"}
                   </button>
                   <button
                     onClick={handleCancel}
@@ -247,7 +413,143 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Preferences */}
+            {/* Addresses */}
+            <div className="border border-border p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-foreground/30" />
+                  <h3 className="font-courier text-[10px] tracking-[0.2em] uppercase text-foreground/55">
+                    Saved Addresses
+                  </h3>
+                </div>
+                {!showAddressForm && (
+                  <button
+                    onClick={openAddForm}
+                    className="flex items-center gap-1.5 font-courier text-[9px] tracking-[0.15em] uppercase text-primary hover:text-primary/70 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Address
+                  </button>
+                )}
+              </div>
+
+              {/* Address list */}
+              {addressesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-20 bg-foreground/5 animate-pulse" />
+                  ))}
+                </div>
+              ) : addresses.length === 0 && !showAddressForm ? (
+                <div className="text-center py-8">
+                  <p className="font-courier text-[10px] tracking-[0.1em] uppercase text-foreground/30 mb-3">
+                    No addresses saved
+                  </p>
+                  <p className="text-foreground/40 text-xs">
+                    Add a shipping address to speed up checkout.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 mb-4">
+                  {addresses.map((address) => (
+                    <div
+                      key={address.id}
+                      className="border border-border p-5 flex items-start justify-between gap-4 group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {address.isDefault && (
+                            <span className="font-courier text-[8px] tracking-[0.2em] uppercase bg-primary/10 text-primary px-2 py-0.5">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-courier text-sm text-foreground leading-relaxed">
+                          {address.street}
+                        </p>
+                        <p className="font-courier text-[11px] text-foreground/50 mt-0.5">
+                          {address.city}, {address.state} {address.zipCode}
+                        </p>
+                        <p className="font-courier text-[11px] text-foreground/50">
+                          {address.country}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => openEditForm(address)}
+                          className="p-1.5 text-foreground/30 hover:text-primary transition-colors"
+                          aria-label="Edit address"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => deleteAddress(address.id)}
+                          className="p-1.5 text-foreground/30 hover:text-alert transition-colors"
+                          aria-label="Delete address"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add / Edit form */}
+              {showAddressForm && (
+                <div className="border border-border p-6 mt-4">
+                  <p className="font-courier text-[9px] tracking-[0.2em] uppercase text-foreground/40 mb-6">
+                    {editingAddressId ? "Edit Address" : "New Address"}
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                    {ADDRESS_FIELDS.map(({ label, key }) => (
+                      <div key={key} className={key === "street" ? "sm:col-span-2" : ""}>
+                        <label className="font-courier text-[9px] tracking-[0.2em] uppercase text-foreground/40 block mb-2">
+                          {label}
+                        </label>
+                        <input
+                          type="text"
+                          value={addressForm[key]}
+                          onChange={updateAddressField(key)}
+                          className="w-full border-b border-border bg-transparent font-courier text-sm pb-2 focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <label className="flex items-center gap-3 cursor-pointer mb-6">
+                    <input
+                      type="checkbox"
+                      checked={addressForm.isDefault}
+                      onChange={updateAddressField("isDefault")}
+                      className="w-4 h-4 accent-primary cursor-pointer"
+                    />
+                    <span className="font-courier text-[10px] tracking-[0.1em] uppercase text-foreground/60">
+                      Set as default address
+                    </span>
+                  </label>
+
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                    <button
+                      onClick={handleAddressSave}
+                      disabled={isSavingAddress}
+                      className="bg-primary text-white font-courier text-[9px] tracking-[0.2em] uppercase px-8 py-3 hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingAddress ? "Saving…" : "Save Address"}
+                    </button>
+                    <button
+                      onClick={closeAddressForm}
+                      className="border border-border text-foreground/60 font-courier text-[9px] tracking-[0.2em] uppercase px-8 py-3 hover:border-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notifications */}
             <div className="border border-border p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-4 h-4 flex items-center justify-center">

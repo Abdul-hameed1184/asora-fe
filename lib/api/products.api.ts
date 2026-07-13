@@ -6,7 +6,7 @@
  * never import axios or the client directly.
  */
 
-import { apiClient } from "@/lib/api/client";
+import { ProductService } from "@/services/product.service";
 
 // ---------------------------------------------------------------------------
 // Shared domain types (mirrors backend schema exactly)
@@ -109,29 +109,25 @@ export async function fetchAdminProducts(
   const params = Object.fromEntries(
     Object.entries(filters).filter(([, v]) => v !== undefined && v !== "")
   );
-  const res = await apiClient.get<{ data: { data: any[]; pagination: Pagination } }>(
-    "/products",
-    { params }
-  );
-  console.log(res.data)
+  const result = await ProductService.getAll(params);
   return {
-    data: res.data.data.data.map(normaliseProduct),
-    pagination: res.data.data.pagination,
+    data: result.data.data.map(normaliseProduct),
+    pagination: result.data.pagination,
   };
 }
 
 /** GET /products/:id — full product detail for admin */
 export async function fetchAdminProduct(id: string): Promise<Product> {
-  const res = await apiClient.get<{ data: Product }>(`/products/${id}`);
-  return normaliseProduct(res.data.data);
+  const result = await ProductService.getById(id);
+  return normaliseProduct(result.data);
 }
 
 /** POST /products — create a new product */
 export async function createProduct(
   payload: CreateProductPayload
 ): Promise<Product> {
-  const res = await apiClient.post<{ data: Product }>("/products", payload);
-  return normaliseProduct(res.data.data);
+  const result = await ProductService.create(payload as Parameters<typeof ProductService.create>[0]);
+  return normaliseProduct(result.data);
 }
 
 /** PUT /products/:id — update product details / stock */
@@ -139,16 +135,13 @@ export async function updateProduct(
   id: string,
   payload: UpdateProductPayload
 ): Promise<Product> {
-  const res = await apiClient.put<{ data: Product }>(
-    `/products/${id}`,
-    payload
-  );
-  return normaliseProduct(res.data.data);
+  const result = await ProductService.update(id, payload as Parameters<typeof ProductService.update>[1]);
+  return normaliseProduct(result.data);
 }
 
 /** DELETE /products/:id — soft delete (archives) */
 export async function deleteProduct(id: string): Promise<void> {
-  await apiClient.delete(`/products/${id}`);
+  await ProductService.delete(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,21 +155,17 @@ export async function fetchPublicProducts(
   const params = Object.fromEntries(
     Object.entries(filters).filter(([, v]) => v !== undefined && v !== "")
   );
-  const res = await apiClient.get<{
-    data: { data: Record<string, unknown>[]; pagination: Pagination };
-  }>("/products/published", { params });
+  const result = await ProductService.getAllPublished(params);
   return {
-    data: res.data.data.data.map(normaliseProduct),
-    pagination: res.data.data.pagination,
+    data: result.data.data.map(normaliseProduct),
+    pagination: result.data.pagination,
   };
 }
 
-/** GET /public/products/:id — published product detail for storefront */
+/** GET /products/:id/published — published product detail for storefront */
 export async function fetchPublicProduct(id: string): Promise<Product> {
-  const res = await apiClient.get<{ data: Product }>(
-    `/products/${id}/published`
-  );
-  return normaliseProduct(res.data.data);
+  const result = await ProductService.getPublishedById(id);
+  return normaliseProduct(result.data);
 }
 
 // ---------------------------------------------------------------------------

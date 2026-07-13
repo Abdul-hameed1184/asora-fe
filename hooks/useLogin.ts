@@ -27,6 +27,8 @@ export function useLogin() {
 
         toast.success(response.message)
 
+        console.log(response.data.user)
+
         if (response.data.user?.role === 'ADMIN') {
           router.push("/admin");
         } else {

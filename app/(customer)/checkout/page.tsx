@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Truck, Store, Lock, AlertCircle } from "lucide-react";
 import { useApiMutation } from "@/hooks/useApiMutation";
-import { OrderService } from "@/services/order.service";
-import { CreateOrderDto, Order } from "@/types/order.types";
+import { CreateOrderDto, Order, CheckoutResponse } from "@/types/order.types";
 import { ApiSuccess } from "@/types/api.types";
+import { dataTagSymbol } from "@tanstack/react-query";
+import { OrderService } from "@/services/order.service";
 
 const NIGERIAN_STATES = [
   "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno",
@@ -34,7 +35,7 @@ interface FormState {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const [deliveryMethod, setDeliveryMethod] = useState<"doorstep" | "pickup">("doorstep");
+  const [deliveryMethod, setDeliveryMethod] = useState<"delivery" | "pickup">("delivery");
   const [form, setForm] = useState<FormState>({
     firstName: "",
     lastName: "",
@@ -47,11 +48,11 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-  const shipping = deliveryMethod === "doorstep" ? 15000 : 0;
+  const shipping = deliveryMethod === "delivery" ? 15000 : 0;
   const total = subtotal + shipping;
 
   const { mutate, isPending, error: mutationError } = useApiMutation<
-    ApiSuccess<Order>,
+    ApiSuccess<CheckoutResponse>,
     CreateOrderDto
   >({
     mutationFn: (data) => OrderService.create(data),
@@ -85,12 +86,12 @@ export default function CheckoutPage() {
         shippingState: form.state,
         shippingCountry: form.country,
         paymentMethod: "CARD",
+        deliveryMethod,
       },
       {
         onSuccess: (data) => {
-          router.push(
-            `/order-success?orderNumber=${data.data.orderNumber}&total=${data.data.totalAmount}`
-          );
+          console.log(data.data.paymentUrl)
+          window.open(data.data.paymentUrl, '_blank', 'noopener, noreferrer');;
         },
       }
     );
@@ -132,19 +133,19 @@ export default function CheckoutPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Doorstep */}
                 <button
-                  onClick={() => setDeliveryMethod("doorstep")}
+                  onClick={() => setDeliveryMethod("delivery")}
                   className={`flex items-start gap-4 p-5 border-2 text-left transition-colors ${
-                    deliveryMethod === "doorstep"
+                    deliveryMethod === "delivery"
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/40"
                   }`}
                 >
                   <div
                     className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                      deliveryMethod === "doorstep" ? "border-primary" : "border-border"
+                      deliveryMethod === "delivery" ? "border-primary" : "border-border"
                     }`}
                   >
-                    {deliveryMethod === "doorstep" && (
+                    {deliveryMethod === "delivery" && (
                       <div className="w-2 h-2 rounded-full bg-primary" />
                     )}
                   </div>

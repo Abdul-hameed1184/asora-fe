@@ -1,36 +1,30 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-
-export interface WishlistItem {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  slug: string;
-}
 
 interface WishlistState {
-  items: WishlistItem[];
-  toggle: (item: WishlistItem) => void;
-  isWishlisted: (id: string) => boolean;
+  productIds: Set<string>;
+  setWishlist: (ids: string[]) => void;
+  add: (id: string) => void;
+  remove: (id: string) => void;
+  has: (id: string) => boolean;
+  clear: () => void;
 }
 
-export const useWishlistStore = create<WishlistState>()(
-  persist(
-    (set, get) => ({
-      items: [],
+export const useWishlistStore = create<WishlistState>((set, get) => ({
+  productIds: new Set(),
 
-      toggle: (item) => {
-        const exists = get().items.some((i) => i.id === item.id);
-        set({
-          items: exists
-            ? get().items.filter((i) => i.id !== item.id)
-            : [...get().items, item],
-        });
-      },
+  setWishlist: (ids) => set({ productIds: new Set(ids) }),
 
-      isWishlisted: (id) => get().items.some((i) => i.id === id),
+  add: (id) =>
+    set((s) => ({ productIds: new Set([...s.productIds, id]) })),
+
+  remove: (id) =>
+    set((s) => {
+      const next = new Set(s.productIds);
+      next.delete(id);
+      return { productIds: next };
     }),
-    { name: "wishlist-storage" }
-  )
-);
+
+  has: (id) => get().productIds.has(id),
+
+  clear: () => set({ productIds: new Set() }),
+}));

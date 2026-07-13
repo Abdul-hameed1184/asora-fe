@@ -9,7 +9,7 @@ type ApiQueryOptions<TData> = Omit<
     "queryKey" | "queryFn"
 > & {
     queryKey: QueryKey;
-    queryFn: () => Promise<TData>;
+    queryFn: UseQueryOptions<TData>['queryFn'];
 };
 
 export function useApiQuery<TData>({

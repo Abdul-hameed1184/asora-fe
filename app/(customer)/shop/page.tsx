@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Heart, Loader2, RefreshCw, PackageSearch } from "lucide-react";
+import { useWishlist } from "@/hooks/useWishlist";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApiQuery } from "@/hooks/useApiQuery";
@@ -45,6 +46,8 @@ export default function ShopPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(12);
   const [pageInput, setPageInput] = useState("1");
+
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   const [debouncedSearch] = useDebounce(searchQuery, 500);
 
@@ -452,10 +455,25 @@ export default function ShopPage() {
                           </div>
                         )}
                         <button
-                          onClick={(e) => e.preventDefault()}
-                          className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-md hover:shadow-lg transition opacity-0 group-hover:opacity-100"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleWishlist(product.id);
+                          }}
+                          className={`absolute top-4 right-4 p-2 bg-white rounded-full shadow-md hover:shadow-lg transition ${
+                            isWishlisted(product.id)
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100"
+                          }`}
+                          aria-label={isWishlisted(product.id) ? "Remove from wishlist" : "Add to wishlist"}
                         >
-                          <Heart className="w-5 h-5 text-gray-700" />
+                          <Heart
+                            className={`w-5 h-5 transition-colors ${
+                              isWishlisted(product.id)
+                                ? "fill-rose-500 text-rose-500"
+                                : "text-gray-700 hover:text-rose-500"
+                            }`}
+                          />
                         </button>
                       </div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">

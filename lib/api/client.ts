@@ -136,11 +136,13 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const { data } = await refreshClient.post<
-        ApiSuccess<{ accessToken: string }>
-      >("/auth/refresh", {});
+      const { data } = await refreshClient.post<ApiSuccess<string>>(
+        "/auth/refresh",
+        {}
+      );
 
-      const newToken = data.data.accessToken;
+      // Backend sends the access token as a plain string in data.data
+      const newToken = data.data;
 
       // Persist the new token; keep the existing user object.
       const { user, login: storeLogin } = useAuthStore.getState();

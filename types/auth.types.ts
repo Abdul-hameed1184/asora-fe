@@ -18,6 +18,9 @@ export interface User {
     email: string;
     role: "CUSTOMER" | "ADMIN";
     phoneNumber: string;
+    isVerified?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface AuthResponse {

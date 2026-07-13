@@ -86,6 +86,11 @@ export interface CreateOrderDto {
     shippingState: string;
     shippingCountry: string;
     paymentMethod: PaymentMethod;
+    deliveryMethod: "pickup" | "delivery";
+}
+
+export interface CheckoutResponse {
+    paymentUrl: string;
 }
 
 export interface CancelOrderDto {

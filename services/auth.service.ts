@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { ApiSuccess } from "@/types/api.types";
-import { SignupDto, LoginDto, AuthResponse } from "@/types/auth.types";
+import { SignupDto, LoginDto, AuthResponse, User } from "@/types/auth.types";
 
 export class AuthService {
   static signup(data: SignupDto) {
@@ -16,7 +16,7 @@ export class AuthService {
   }
 
   static me() {
-    return apiClient.get<ApiSuccess<AuthResponse>>("/auth/me");
+    return apiClient.get<ApiSuccess<User>>("/auth/me");
   }
 
   // Kept for explicit refresh calls; the client interceptor also calls this

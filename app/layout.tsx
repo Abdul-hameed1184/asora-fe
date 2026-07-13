@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import QueryProvider from "@/providers/QueryProvider";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { Toaster } from 'react-hot-toast'
 
 const geistSans = Geist({
@@ -47,9 +48,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-white">
         <QueryProvider>
-          <Toaster />
-          <main className="flex-grow">{children}</main>
-          {/* <Footer /> */}
+          <AuthProvider>
+            <Toaster />
+            <main className="flex-grow">{children}</main>
+            {/* <Footer /> */}
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

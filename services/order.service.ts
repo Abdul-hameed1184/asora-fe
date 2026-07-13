@@ -1,10 +1,10 @@
 import { apiClient } from "@/lib/api/client";
 import { ApiSuccess, PaginatedResponse } from "@/types/api.types";
-import { CancelOrderDto, CreateOrderDto, GetAdminOrdersParams, GetOrdersParams, Order, UpdateOrderStatusDto } from "@/types/order.types";
+import { CancelOrderDto, CreateOrderDto, GetAdminOrdersParams, GetOrdersParams, Order, UpdateOrderStatusDto, CheckoutResponse } from "@/types/order.types";
 
 export const OrderService = {
     async create(data: CreateOrderDto) {
-        const res = await apiClient.post<ApiSuccess<Order>>(
+        const res = await apiClient.post<ApiSuccess<CheckoutResponse>>(
             "/orders",
             data
         );

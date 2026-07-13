@@ -11,7 +11,7 @@ import { useParams } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAddToCart } from "@/hooks/useCart";
 import { Product, fetchPublicProduct } from "@/lib/api/products.api";
-import { useWishlistStore } from "@/lib/stores/useWishlistStore";
+import { useWishlist } from "@/hooks/useWishlist";
 import toast from "react-hot-toast";
 
 type Tab = "description" | "care" | "size";
@@ -40,7 +40,7 @@ export default function ProductPage() {
     });
 
   const { submit: addToCart, isPending: addingToCart } = useAddToCart();
-  const { toggle: toggleWishlist, isWishlisted } = useWishlistStore();
+  const { toggleWishlist, isWishlisted, isPending: wishlistPending } = useWishlist();
 
   if (isPending) return <ProductSkeleton />;
 
@@ -110,14 +110,7 @@ export default function ProductPage() {
   };
 
   const handleWishlist = () => {
-    toggleWishlist({
-      id: product.id,
-      name: product.name,
-      price: product.basePrice,
-      image: product.featuredImage ?? allImages[0] ?? "",
-      slug: product.slug ?? product.id,
-    });
-    toast.success(wishlisted ? "Removed from wishlist" : "Added to wishlist");
+    toggleWishlist(product.id);
   };
 
   const handleShare = async () => {
@@ -344,7 +337,8 @@ export default function ProductPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleWishlist}
-                className={`flex items-center justify-center gap-2 flex-1 py-3 border rounded-xl text-sm transition-all ${
+                disabled={wishlistPending}
+                className={`flex items-center justify-center gap-2 flex-1 py-3 border rounded-xl text-sm transition-all disabled:opacity-60 ${
                   wishlisted
                     ? "border-rose-300 bg-rose-50 text-rose-600"
                     : "border-gray-200 text-gray-600 hover:text-rose-500 hover:border-rose-200"

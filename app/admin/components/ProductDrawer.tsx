@@ -1,13 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X, Camera, Star, Plus, Trash2, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  useProductDrawerStore,
-} from "@/lib/stores/useProductDrawerStore";
+  X,
+  Camera,
+  Star,
+  Plus,
+  Trash2,
+  Loader2,
+  Check,
+  RotateCcw,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useProductDrawerStore } from "@/lib/stores/useProductDrawerStore";
 import type { Variant } from "@/lib/stores/useProductDrawerStore";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
+import { useUploadImages } from "@/hooks/useUploadImages";
 import type { CreateProductPayload } from "@/lib/api/products.api";
 
 // ---------------------------------------------------------------------------
@@ -43,17 +51,33 @@ const inputCls =
   "w-full px-4 py-2.5 bg-white border border-[#EBE8E2] text-sm text-zinc-900 focus:outline-none focus:border-[#C99A36] transition-colors";
 
 // ---------------------------------------------------------------------------
-// Component — no longer needs callback props; mutations are self-contained
+// Component
 // ---------------------------------------------------------------------------
 export default function ProductDrawer() {
   const { isOpen, mode, activeProduct, close } = useProductDrawerStore();
   const isManage = mode === "manage-stock";
 
+  // ── File input ref ───────────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // ── TanStack Query mutations ─────────────────────────────────────────────
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
 
+  // ── Upload state ─────────────────────────────────────────────────────────
+  const {
+    images,
+    uploadedImages,
+    addImages,
+    removeImage,
+    retryImage,
+    uploadAsync,
+    clearAll,
+    isUploading,
+  } = useUploadImages("products");
+
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isPending = isSaving || isUploading;
 
   // ── Form state ──────────────────────────────────────────────────────────
   const [name, setName] = useState("");
@@ -73,12 +97,12 @@ export default function ProductDrawer() {
   const mutationError =
     createMutation.error?.message ?? updateMutation.error?.message;
 
-  // ── Sync when drawer opens ───────────────────────────────────────────────
+  // ── Sync when drawer opens / closes ─────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
-      // Reset mutation state when drawer closes so stale errors don't persist.
       createMutation.reset();
       updateMutation.reset();
+      clearAll();
       return;
     }
 
@@ -108,9 +132,19 @@ export default function ProductDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, mode, activeProduct]);
 
+  // ── File picker ──────────────────────────────────────────────────────────
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) addImages(files);
+    e.target.value = "";
+  }
+
   // ── Variant helpers ─────────────────────────────────────────────────────
   const addVariantRow = () =>
-    setVariants((prev) => [...prev, { size: "", color: "", stock: "", price: "" }]);
+    setVariants((prev) => [
+      ...prev,
+      { size: "", color: "", stock: "", price: "" },
+    ]);
 
   const removeVariantRow = (idx: number) =>
     setVariants((prev) => prev.filter((_, i) => i !== idx));
@@ -127,9 +161,44 @@ export default function ProductDrawer() {
     });
 
   // ── Submit ───────────────────────────────────────────────────────────────
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || isSaving) return;
+    if (!name.trim() || isPending) return;
+
+    // Upload any images that haven't been processed yet.
+    const hasUnuploaded = images.some(
+      (img) => img.status === "idle" || img.status === "failed"
+    );
+    const freshlyUploaded = hasUnuploaded ? await uploadAsync() : [];
+
+    // Combine images uploaded in prior interactions with images just uploaded.
+    const allNewUploaded = [...uploadedImages, ...freshlyUploaded];
+
+    // Build the unified media array:
+    // Edit mode → keep existing product media, append new uploads.
+    // Create mode → new uploads only.
+    const existingMedia = isManage
+      ? (activeProduct?.media ?? []).map((m) => ({
+          url: m.url,
+          publicId: m.publicId,
+          type: m.type,
+          format: m.format,
+        }))
+      : [];
+
+    const newMedia = allNewUploaded.map((img) => ({
+      url: img.url,
+      publicId: img.publicId,
+      type: img.type as "image" | "video",
+      format: img.format,
+    }));
+
+    const allMedia = [...existingMedia, ...newMedia];
+
+    // First image in the array is always the featured (cover) image.
+    const featuredImage =
+      allMedia[0]?.url ??
+      (isManage ? (activeProduct?.featuredImage ?? "") : "");
 
     const payload: CreateProductPayload = {
       name,
@@ -141,8 +210,8 @@ export default function ProductDrawer() {
       category,
       status,
       isFeatured,
-      featuredImage: activeProduct?.featuredImage ?? "/cloth.png",
-      media: activeProduct?.media ?? [],
+      featuredImage,
+      media: allMedia,
       variants: variants
         .filter((v) => v.size.trim())
         .map((v) => ({
@@ -163,6 +232,10 @@ export default function ProductDrawer() {
     }
   };
 
+  // ── Derived photography state ────────────────────────────────────────────
+  const existingMedia = isManage ? (activeProduct?.media ?? []) : [];
+  const totalImages = existingMedia.length + images.length;
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
@@ -170,7 +243,7 @@ export default function ProductDrawer() {
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 transition-opacity"
-          onClick={isSaving ? undefined : close}
+          onClick={isPending ? undefined : close}
         />
       )}
 
@@ -188,12 +261,14 @@ export default function ProductDrawer() {
               {isManage ? "Edit Product" : "New Product"}
             </h2>
             <p className="text-[9px] font-courier tracking-[2px] uppercase text-zinc-500 mt-1">
-              {isManage ? "Update product details & stock" : "Inventory Registration"}
+              {isManage
+                ? "Update product details & stock"
+                : "Inventory Registration"}
             </p>
           </div>
           <button
             onClick={close}
-            disabled={isSaving}
+            disabled={isPending}
             className="p-2 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors disabled:opacity-40"
           >
             <X size={20} />
@@ -209,77 +284,165 @@ export default function ProductDrawer() {
           {/* ── Mutation error banner ──────────────────────────────────── */}
           {mutationError && (
             <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-[#C23A3A] px-4 py-3 text-xs font-courier">
-              <span className="font-bold uppercase tracking-wider shrink-0">Error</span>
+              <span className="font-bold uppercase tracking-wider shrink-0">
+                Error
+              </span>
               <span>{mutationError}</span>
             </div>
           )}
 
           {/* ── Photography ──────────────────────────────────────────────── */}
           <div>
-            <h3 className="text-xs font-courier font-bold tracking-[2px] uppercase text-zinc-500 mb-3">
-              PRODUCT PHOTOGRAPHY
-            </h3>
-            <div className="grid grid-cols-4 gap-4">
-              {/* Featured image slot */}
-              <div className="relative border border-dashed border-[#C99A36]/60 bg-white hover:bg-zinc-50 transition-colors cursor-pointer aspect-square flex flex-col justify-center items-center p-2 text-center text-zinc-400 group overflow-hidden">
-                {isManage && activeProduct?.featuredImage ? (
-                  <>
-                    <img
-                      src={activeProduct.featuredImage}
-                      alt="cover"
-                      className="absolute inset-0 w-full h-full object-cover opacity-80"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera size={18} className="text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Camera
-                      size={24}
-                      className="text-zinc-300 group-hover:text-[#C99A36] transition-colors mb-2"
-                    />
-                    <span className="text-[10px] font-courier font-bold uppercase tracking-wider group-hover:text-[#C99A36] transition-colors">
-                      COVER
-                    </span>
-                  </>
-                )}
-              </div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-courier font-bold tracking-[2px] uppercase text-zinc-500">
+                PRODUCT PHOTOGRAPHY
+              </h3>
+              {totalImages > 0 && (
+                <span className="text-[10px] font-courier text-zinc-400">
+                  {totalImages} image{totalImages !== 1 ? "s" : ""}
+                  {images.some((img) => img.status === "uploaded") &&
+                    ` · ${images.filter((img) => img.status === "uploaded").length} uploaded`}
+                </span>
+              )}
+            </div>
 
-              {/* Additional media slots */}
-              {[0, 1, 2].map((i) => {
-                const mediaItem = activeProduct?.media[i];
+            <div className="grid grid-cols-4 gap-3">
+              {/* Existing images (edit mode only) — shown as static, no re-upload */}
+              {existingMedia.map((item, i) => (
+                <div
+                  key={`existing-${i}`}
+                  className="relative aspect-square overflow-hidden border border-[#EBE8E2] bg-white"
+                >
+                  <img
+                    src={item.url}
+                    alt={`media-${i}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  {i === 0 && (
+                    <div className="absolute top-1 left-1 bg-[#C99A36] text-white text-[8px] font-courier font-bold uppercase tracking-wider px-1.5 py-0.5">
+                      COVER
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Newly added local images */}
+              {images.map((img, i) => {
+                const isCover = existingMedia.length === 0 && i === 0;
+                const isActive =
+                  img.status === "compressing" || img.status === "uploading";
+
                 return (
                   <div
-                    key={i}
-                    className="border border-[#EBE8E2] bg-white aspect-square relative overflow-hidden group cursor-pointer hover:border-[#C99A36]/40 transition-colors"
+                    key={img.id}
+                    className="relative aspect-square overflow-hidden border border-[#EBE8E2] bg-white group"
                   >
-                    {mediaItem ? (
-                      <>
-                        <img
-                          src={mediaItem.url}
-                          alt={`media-${i}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
+                    <img
+                      src={img.preview}
+                      alt={img.file.name}
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Compressing / uploading overlay */}
+                    {isActive && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
+                        <Loader2
+                          size={16}
+                          className="text-white animate-spin"
                         />
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Camera size={14} className="text-white" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Camera size={14} className="text-zinc-200" />
+                        {img.status === "uploading" ? (
+                          <>
+                            <div className="w-10 h-[3px] bg-white/20 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-[#C99A36] transition-all duration-150"
+                                style={{ width: `${img.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[9px] font-courier text-white tabular-nums">
+                              {img.progress}%
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-courier text-white uppercase tracking-wider">
+                            Compressing
+                          </span>
+                        )}
                       </div>
+                    )}
+
+                    {/* Failed overlay */}
+                    {img.status === "failed" && (
+                      <div className="absolute inset-0 bg-red-900/80 flex flex-col items-center justify-center gap-2">
+                        <span className="text-[9px] font-courier text-white uppercase tracking-wider">
+                          Failed
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => retryImage(img.id)}
+                          className="flex items-center gap-1 text-[9px] font-courier text-[#C99A36] uppercase tracking-wider hover:underline"
+                        >
+                          <RotateCcw size={9} />
+                          Retry
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Uploaded tick */}
+                    {img.status === "uploaded" && (
+                      <div className="absolute top-1.5 right-1.5 bg-emerald-500 rounded-full p-0.5">
+                        <Check size={8} className="text-white" />
+                      </div>
+                    )}
+
+                    {/* Cover badge on first new image when no existing media */}
+                    {isCover && (
+                      <div className="absolute top-1 left-1 bg-[#C99A36] text-white text-[8px] font-courier font-bold uppercase tracking-wider px-1.5 py-0.5">
+                        COVER
+                      </div>
+                    )}
+
+                    {/* Remove — only when not actively processing */}
+                    {!isActive && (
+                      <button
+                        type="button"
+                        onClick={() => removeImage(img.id)}
+                        className="absolute bottom-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={9} className="text-white" />
+                      </button>
                     )}
                   </div>
                 );
               })}
+
+              {/* Add photos slot */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isPending}
+                className="border border-dashed border-[#C99A36]/60 bg-white hover:bg-zinc-50 transition-colors aspect-square flex flex-col justify-center items-center gap-1.5 text-zinc-400 group disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Camera
+                  size={20}
+                  className="text-zinc-300 group-hover:text-[#C99A36] transition-colors"
+                />
+                <span className="text-[9px] font-courier font-bold uppercase tracking-wider group-hover:text-[#C99A36] transition-colors">
+                  {totalImages === 0 ? "ADD PHOTOS" : "MORE"}
+                </span>
+              </button>
             </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
 
           {/* ── Core details ─────────────────────────────────────────────── */}
@@ -316,7 +479,9 @@ export default function ProductDrawer() {
                 <select
                   value={status}
                   onChange={(e) =>
-                    setStatus(e.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED")
+                    setStatus(
+                      e.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED"
+                    )
                   }
                   className={inputCls}
                 >
@@ -411,36 +576,39 @@ export default function ProductDrawer() {
                     key={idx}
                     className="grid grid-cols-12 gap-3 items-center bg-white border border-[#EBE8E2] p-2 hover:border-[#C99A36]/40 transition-colors"
                   >
-                    {/* Size */}
                     <div className="col-span-3">
                       <input
                         type="text"
                         placeholder="S"
                         value={v.size}
-                        onChange={(e) => updateVariant(idx, "size", e.target.value)}
+                        onChange={(e) =>
+                          updateVariant(idx, "size", e.target.value)
+                        }
                         className="w-full px-2 py-1.5 border border-zinc-100 text-sm font-semibold focus:outline-none focus:border-[#C99A36] bg-transparent"
                       />
                     </div>
 
-                    {/* Color */}
                     <div className="col-span-3">
                       <input
                         type="text"
                         placeholder="Red"
                         value={v.color}
-                        onChange={(e) => updateVariant(idx, "color", e.target.value)}
+                        onChange={(e) =>
+                          updateVariant(idx, "color", e.target.value)
+                        }
                         className="w-full px-2 py-1.5 border border-zinc-100 text-sm font-semibold focus:outline-none focus:border-[#C99A36] bg-transparent"
                       />
                     </div>
 
-                    {/* Stock */}
                     <div className="col-span-2">
                       <input
                         type="number"
                         min="0"
                         placeholder="0"
                         value={v.stock}
-                        onChange={(e) => updateVariant(idx, "stock", e.target.value)}
+                        onChange={(e) =>
+                          updateVariant(idx, "stock", e.target.value)
+                        }
                         className={cn(
                           "w-full px-2 py-1.5 border text-sm text-center font-semibold focus:outline-none focus:border-[#C99A36]",
                           isOut
@@ -452,19 +620,19 @@ export default function ProductDrawer() {
                       />
                     </div>
 
-                    {/* Price */}
                     <div className="col-span-3">
                       <input
                         type="number"
                         min="0"
                         placeholder="85000"
                         value={v.price}
-                        onChange={(e) => updateVariant(idx, "price", e.target.value)}
+                        onChange={(e) =>
+                          updateVariant(idx, "price", e.target.value)
+                        }
                         className="w-full px-2 py-1.5 border border-zinc-100 text-sm text-center font-semibold bg-zinc-50/50 focus:outline-none focus:border-[#C99A36]"
                       />
                     </div>
 
-                    {/* Delete row */}
                     <div className="col-span-1 flex justify-center">
                       <button
                         type="button"
@@ -489,13 +657,13 @@ export default function ProductDrawer() {
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}
         <div className="px-8 py-5 border-t border-border bg-[#FAF7F2] flex justify-between items-center flex-shrink-0">
-          {/* Featured toggle + storefront visibility */}
+          {/* Featured toggle + status indicator */}
           <div className="flex items-center gap-5">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsFeatured((v) => !v)}
-                disabled={isSaving}
+                disabled={isPending}
                 className={cn(
                   "w-10 h-5 rounded-full p-0.5 transition-colors relative flex items-center disabled:opacity-40",
                   isFeatured ? "bg-[#C99A36]" : "bg-zinc-300"
@@ -509,7 +677,14 @@ export default function ProductDrawer() {
                 />
               </button>
               <span className="flex items-center gap-1 text-[10px] font-courier font-bold tracking-[2px] uppercase text-zinc-500">
-                <Star size={10} className={isFeatured ? "fill-[#C99A36] text-[#C99A36]" : "text-zinc-400"} />
+                <Star
+                  size={10}
+                  className={
+                    isFeatured
+                      ? "fill-[#C99A36] text-[#C99A36]"
+                      : "text-zinc-400"
+                  }
+                />
                 Featured
               </span>
             </div>
@@ -535,7 +710,7 @@ export default function ProductDrawer() {
             <button
               type="button"
               onClick={close}
-              disabled={isSaving}
+              disabled={isPending}
               className="text-xs font-courier font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-950 transition-colors py-2 disabled:opacity-40"
             >
               CANCEL
@@ -543,11 +718,17 @@ export default function ProductDrawer() {
             <button
               type="submit"
               form="product-drawer-form"
-              disabled={isSaving}
+              disabled={isPending}
               className="bg-[#C99A36] hover:bg-[#B0852E] disabled:opacity-60 disabled:cursor-not-allowed text-white px-6 py-3 text-xs font-courier font-bold uppercase tracking-wider transition-colors shadow-md flex items-center gap-2"
             >
-              {isSaving && <Loader2 size={13} className="animate-spin" />}
-              {isManage ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
+              {isPending && <Loader2 size={13} className="animate-spin" />}
+              {isUploading
+                ? "UPLOADING…"
+                : isSaving
+                  ? "SAVING…"
+                  : isManage
+                    ? "UPDATE PRODUCT"
+                    : "SAVE PRODUCT"}
             </button>
           </div>
         </div>

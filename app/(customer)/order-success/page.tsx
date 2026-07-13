@@ -16,7 +16,7 @@ const STEPS = [
 
 function OrderSuccessContent() {
   const params = useSearchParams();
-  const orderNumber = params.get("orderNumber") ?? "TX-00001";
+  const orderNumber = params.get("trxref") ?? "Check your email for the order details";
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
