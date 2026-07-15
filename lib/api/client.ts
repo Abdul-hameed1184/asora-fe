@@ -62,15 +62,27 @@ export class ApiError extends Error {
 
 function toApiError(raw: unknown): ApiError {
   if (raw instanceof ApiError) return raw;
-  const err = raw as AxiosError<{ message?: string; error?: string }>;
-  toast.error(
-    err.response?.data?.message ?? err.message ?? "An unexpected error occurred"
-  );
+  const err = raw as AxiosError<{
+    message?: string;
+    error?: string;
+    details?: Array<{ path: (string | number)[]; message: string }>;
+  }>;
+
+  // Zod validation failures carry no top-level `message` — build one from `details`.
+  const detailMessage = err.response?.data?.details
+    ?.map((d) => `${d.path.join(".")}: ${d.message}`)
+    .join("; ");
+
+  const message =
+    err.response?.data?.message ??
+    detailMessage ??
+    err.message ??
+    "An unexpected error occurred";
+
+  toast.error(message);
   return new ApiError(
     err.response?.status ?? 0,
-    err.response?.data?.message ??
-    err.message ??
-    "An unexpected error occurred",
+    message,
     err.response?.data?.error
   );
 }

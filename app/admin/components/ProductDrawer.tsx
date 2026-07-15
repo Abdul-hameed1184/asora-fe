@@ -15,26 +15,34 @@ import { cn } from "@/lib/utils";
 import { useProductDrawerStore } from "@/lib/stores/useProductDrawerStore";
 import type { Variant } from "@/lib/stores/useProductDrawerStore";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
 import { useUploadImages } from "@/hooks/useUploadImages";
-import type { CreateProductPayload } from "@/lib/api/products.api";
+import type {
+  CreateProductPayload,
+  UpdateProductPayload,
+  VariantPatch,
+} from "@/lib/api/products.api";
+
+// ---------------------------------------------------------------------------
+// Canonical variant size options — must match the backend Zod enum exactly
+// (backend/src/validations/product.validation.ts)
+// ---------------------------------------------------------------------------
+const VARIANT_SIZES = ["XS", "S", "M", "L", "XL"] as const;
 
 // ---------------------------------------------------------------------------
 // Editable variant row — keeps numbers as strings for input binding
 // ---------------------------------------------------------------------------
 interface EditableVariant {
+  id?: string;
   size: string;
   color: string;
   stock: string;
   price: string;
 }
 
-const DEFAULT_VARIANTS: EditableVariant[] = [
-  { size: "S", color: "Red", stock: "30", price: "80000" },
-  { size: "M", color: "Red", stock: "50", price: "85000" },
-];
-
 function toEditable(variants: Variant[]): EditableVariant[] {
   return variants.map((v) => ({
+    id: v.id,
     size: v.size,
     color: v.color,
     stock: String(v.stock),
@@ -63,6 +71,8 @@ export default function ProductDrawer() {
   // ── TanStack Query mutations ─────────────────────────────────────────────
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
+  const { data: categoriesData } = useCategories();
+  const categories = categoriesData?.data ?? [];
 
   // ── Upload state ─────────────────────────────────────────────────────────
   const {
@@ -86,22 +96,23 @@ export default function ProductDrawer() {
   const [sizeGuide, setSizeGuide] = useState("");
   const [basePrice, setBasePrice] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [category, setCategory] = useState("Dresses");
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED" | "ARCHIVED">(
     "DRAFT"
   );
   const [isFeatured, setIsFeatured] = useState(false);
-  const [variants, setVariants] = useState<EditableVariant[]>(DEFAULT_VARIANTS);
+  const [variants, setVariants] = useState<EditableVariant[]>([]);
 
-  // ── Mutation-level error to surface in the UI ────────────────────────────
+  // ── Mutation-level / client-side validation error to surface in the UI ───
+  const [formError, setFormError] = useState<string | null>(null);
   const mutationError =
-    createMutation.error?.message ?? updateMutation.error?.message;
+    formError ?? createMutation.error?.message ?? updateMutation.error?.message;
 
   // ── Sync when drawer opens / closes ─────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
       createMutation.reset();
       updateMutation.reset();
+      setFormError(null);
       clearAll();
       return;
     }
@@ -113,10 +124,9 @@ export default function ProductDrawer() {
       setSizeGuide("");
       setBasePrice("");
       setCategoryId("");
-      setCategory("Dresses");
       setStatus("DRAFT");
       setIsFeatured(false);
-      setVariants(DEFAULT_VARIANTS);
+      setVariants([]);
     } else {
       setName(activeProduct.name);
       setDescription(activeProduct.description);
@@ -124,7 +134,6 @@ export default function ProductDrawer() {
       setSizeGuide(activeProduct.sizeGuide);
       setBasePrice(String(activeProduct.basePrice));
       setCategoryId(activeProduct.categoryId);
-      setCategory(activeProduct.category);
       setStatus(activeProduct.status);
       setIsFeatured(activeProduct.isFeatured);
       setVariants(toEditable(activeProduct.variants));
@@ -143,7 +152,7 @@ export default function ProductDrawer() {
   const addVariantRow = () =>
     setVariants((prev) => [
       ...prev,
-      { size: "", color: "", stock: "", price: "" },
+      { size: VARIANT_SIZES[0], color: "", stock: "", price: "" },
     ]);
 
   const removeVariantRow = (idx: number) =>
@@ -165,6 +174,22 @@ export default function ProductDrawer() {
     e.preventDefault();
     if (!name.trim() || isPending) return;
 
+    setFormError(null);
+
+    if (!categoryId) {
+      setFormError("Please select a category.");
+      return;
+    }
+
+    const validVariants = variants.filter((v) => v.size.trim() && v.color.trim());
+    if (validVariants.length === 0) {
+      setFormError("Add at least one size variant (size + color required).");
+      return;
+    }
+
+    const selectedCategory = categories.find((c) => c.id === categoryId);
+    const parsedBasePrice = parseFloat(basePrice) || 0;
+
     // Upload any images that haven't been processed yet.
     const hasUnuploaded = images.some(
       (img) => img.status === "idle" || img.status === "failed"
@@ -173,19 +198,6 @@ export default function ProductDrawer() {
 
     // Combine images uploaded in prior interactions with images just uploaded.
     const allNewUploaded = [...uploadedImages, ...freshlyUploaded];
-
-    // Build the unified media array:
-    // Edit mode → keep existing product media, append new uploads.
-    // Create mode → new uploads only.
-    const existingMedia = isManage
-      ? (activeProduct?.media ?? []).map((m) => ({
-          url: m.url,
-          publicId: m.publicId,
-          type: m.type,
-          format: m.format,
-        }))
-      : [];
-
     const newMedia = allNewUploaded.map((img) => ({
       url: img.url,
       publicId: img.publicId,
@@ -193,41 +205,109 @@ export default function ProductDrawer() {
       format: img.format,
     }));
 
-    const allMedia = [...existingMedia, ...newMedia];
-
-    // First image in the array is always the featured (cover) image.
-    const featuredImage =
-      allMedia[0]?.url ??
-      (isManage ? (activeProduct?.featuredImage ?? "") : "");
-
-    const payload: CreateProductPayload = {
-      name,
-      description,
-      careGuide,
-      sizeGuide,
-      basePrice: parseFloat(basePrice) || 0,
-      categoryId,
-      category,
-      status,
-      isFeatured,
-      featuredImage,
-      media: allMedia,
-      variants: variants
-        .filter((v) => v.size.trim())
-        .map((v) => ({
-          size: v.size,
-          color: v.color,
-          stock: parseInt(v.stock) || 0,
-          price: parseFloat(v.price) || 0,
-        })),
-    };
-
     if (isManage && activeProduct) {
+      // ── Update: send only what actually changed ───────────────────────
+      const patch: UpdateProductPayload = {};
+
+      if (name !== activeProduct.name) patch.name = name;
+      if (description !== activeProduct.description) patch.description = description;
+      if (careGuide !== activeProduct.careGuide) patch.careGuide = careGuide;
+      if (sizeGuide !== activeProduct.sizeGuide) patch.sizeGuide = sizeGuide;
+      if (parsedBasePrice !== activeProduct.basePrice) patch.basePrice = parsedBasePrice;
+      // Note: `category` (the name string) isn't part of `UpdateProductInput`
+      // on the backend — only `categoryId` drives the relation on update.
+      if (categoryId !== activeProduct.categoryId) {
+        patch.categoryId = categoryId;
+      }
+      if (status !== activeProduct.status) patch.status = status;
+      if (isFeatured !== activeProduct.isFeatured) patch.isFeatured = isFeatured;
+
+      // Only touch media/featuredImage if new photos were actually uploaded
+      // this session — existing media is left alone otherwise.
+      if (newMedia.length > 0) {
+        const existingMedia = (activeProduct.media ?? []).map((m) => ({
+          url: m.url,
+          publicId: m.publicId,
+          type: m.type,
+          format: m.format,
+        }));
+        const allMedia = [...existingMedia, ...newMedia];
+        patch.media = allMedia;
+        patch.featuredImage = allMedia[0]?.url ?? activeProduct.featuredImage;
+      }
+
+      // Variants: only rows with an actual change are sent, and only the
+      // changed fields — existing rows are patched by `id`, rows without an
+      // `id` (added via "+ ADD ROW") are brand-new and sent in full.
+      const variantPatches = validVariants
+        .map((v): VariantPatch | null => {
+          const stock = parseInt(v.stock) || 0;
+          const price = v.price.trim() ? parseFloat(v.price) : undefined;
+
+          if (!v.id) {
+            return { size: v.size, color: v.color, stock, price };
+          }
+
+          const original = activeProduct.variants.find((ov) => ov.id === v.id);
+          if (!original) return { id: v.id, size: v.size, color: v.color, stock, price };
+
+          const rowPatch: VariantPatch = { id: v.id };
+          let changed = false;
+          if (v.size !== original.size) {
+            rowPatch.size = v.size;
+            changed = true;
+          }
+          if (v.color !== original.color) {
+            rowPatch.color = v.color;
+            changed = true;
+          }
+          if (stock !== original.stock) {
+            rowPatch.stock = stock;
+            changed = true;
+          }
+          if (price !== undefined && price !== original.price) {
+            rowPatch.price = price;
+            changed = true;
+          }
+          return changed ? rowPatch : null;
+        })
+        .filter((v): v is VariantPatch => v !== null);
+
+      if (variantPatches.length > 0) {
+        patch.variants = variantPatches;
+      }
+
+      if (Object.keys(patch).length === 0) {
+        setFormError("No changes to save.");
+        return;
+      }
+
       updateMutation.mutate(
-        { id: activeProduct.id, payload },
+        { id: activeProduct.id, payload: patch },
         { onSuccess: close }
       );
     } else {
+      // ── Create: full payload required ──────────────────────────────────
+      const payload: CreateProductPayload = {
+        name,
+        description,
+        careGuide,
+        sizeGuide,
+        basePrice: parsedBasePrice,
+        categoryId,
+        category: selectedCategory?.name ?? "",
+        status,
+        isFeatured,
+        featuredImage: newMedia[0]?.url ?? "",
+        media: newMedia,
+        variants: validVariants.map((v) => ({
+          size: v.size,
+          color: v.color,
+          stock: parseInt(v.stock) || 0,
+          price: v.price.trim() ? parseFloat(v.price) : undefined,
+        })),
+      };
+
       createMutation.mutate(payload, { onSuccess: close });
     }
   };
@@ -464,13 +544,21 @@ export default function ProductDrawer() {
               {/* Category */}
               <div>
                 <label className={labelCls}>Category</label>
-                <input
-                  type="text"
-                  placeholder="Dresses"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                <select
+                  required
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
                   className={inputCls}
-                />
+                >
+                  <option value="" disabled>
+                    Select a category…
+                  </option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Status */}
@@ -577,15 +665,19 @@ export default function ProductDrawer() {
                     className="grid grid-cols-12 gap-3 items-center bg-white border border-[#EBE8E2] p-2 hover:border-[#C99A36]/40 transition-colors"
                   >
                     <div className="col-span-3">
-                      <input
-                        type="text"
-                        placeholder="S"
+                      <select
                         value={v.size}
                         onChange={(e) =>
                           updateVariant(idx, "size", e.target.value)
                         }
                         className="w-full px-2 py-1.5 border border-zinc-100 text-sm font-semibold focus:outline-none focus:border-[#C99A36] bg-transparent"
-                      />
+                      >
+                        {VARIANT_SIZES.map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="col-span-3">

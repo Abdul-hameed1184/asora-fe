@@ -95,8 +95,43 @@ export interface ProductFilters {
 // Mutation payloads
 // ---------------------------------------------------------------------------
 
-export type CreateProductPayload = Omit<Product, "id" | "createdAt" | "updatedAt" | "_count">;
-export type UpdateProductPayload = Partial<CreateProductPayload>;
+/** Variant shape accepted on write — unlike `Variant`, `price` is optional
+ *  (backend defaults it to `basePrice` when omitted). */
+export interface VariantInput {
+  id?: string;
+  size: string;
+  color: string;
+  stock: number;
+  price?: number;
+}
+
+export type CreateProductPayload = Omit<
+  Product,
+  "id" | "createdAt" | "updatedAt" | "_count" | "variants"
+> & {
+  variants: VariantInput[];
+};
+
+/** Variant shape accepted when PATCHING an existing product — every field
+ *  except `id` is optional; only the fields actually changed need to be
+ *  sent (mirrors the backend's `updateVariantSchema`). A row with no `id`
+ *  is a brand-new variant and still needs `size`/`color`/`stock`. */
+export interface VariantPatch {
+  id?: string;
+  size?: string;
+  color?: string;
+  stock?: number;
+  price?: number;
+}
+
+/** PUT payload — a true partial patch. Only include the top-level fields
+ *  that changed; `variants` (if present) only needs to carry `id` plus the
+ *  fields that changed for that row. */
+export type UpdateProductPayload = Partial<
+  Omit<CreateProductPayload, "variants">
+> & {
+  variants?: VariantPatch[];
+};
 
 // ---------------------------------------------------------------------------
 // ── Admin product API functions ──────────────────────────────────────────

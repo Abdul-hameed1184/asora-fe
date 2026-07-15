@@ -67,6 +67,16 @@ export interface UpdateProductInput {
 }
 
 
+export interface CategoryDto {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  _count?: { products: number };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface GetProductsParams {
   page?: number;
   limit?: number;

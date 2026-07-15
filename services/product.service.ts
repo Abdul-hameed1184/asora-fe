@@ -2,7 +2,9 @@
 
 import { apiClient } from "@/lib/api/client";
 import { ApiSuccess } from "@/types/api.types";
-import { ProductDto } from "@/types/product.types";
+import { ProductDto, CategoryDto } from "@/types/product.types";
+
+type CategoryListData = ApiSuccess<{ data: CategoryDto[]; total: number }>;
 
 interface ProductPagination {
     total: number;
@@ -52,18 +54,18 @@ export const ProductService = {
         return res.data;
     },
 
-    async getCategories(): Promise<ApiSuccess<ProductDto>> {
-        const res = await apiClient.get<ApiSuccess<ProductDto>>("/categories");
+    async getCategories(): Promise<CategoryListData> {
+        const res = await apiClient.get<CategoryListData>("/categories");
         return res.data;
     },
 
-    async createCategory(data: ProductDto): Promise<ApiSuccess<ProductDto>> {
-        const res = await apiClient.post<ApiSuccess<ProductDto>>("/categories", data);
+    async createCategory(data: { name: string; description?: string }): Promise<ApiSuccess<CategoryDto>> {
+        const res = await apiClient.post<ApiSuccess<CategoryDto>>("/categories", data);
         return res.data;
     },
 
-    async updateCategory(id: string, data: ProductDto): Promise<ApiSuccess<ProductDto>> {
-        const res = await apiClient.put<ApiSuccess<ProductDto>>(`/categories/${id}`, data);
+    async updateCategory(id: string, data: { name?: string; description?: string }): Promise<ApiSuccess<CategoryDto>> {
+        const res = await apiClient.put<ApiSuccess<CategoryDto>>(`/categories/${id}`, data);
         return res.data;
     },
 

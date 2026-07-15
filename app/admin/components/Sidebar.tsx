@@ -10,11 +10,13 @@ import {
     PanelLeftOpen,
     LogOut,
     LayoutGrid,
+    History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { clsx } from "clsx";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/stores/useAuthStore";
 
 const navigation = [
     {
@@ -33,6 +35,11 @@ const navigation = [
         icon: Package,
     },
     {
+        title: "Inventory Log",
+        href: "/admin/inventory-log",
+        icon: History,
+    },
+    {
         title: "Customers",
         href: "/admin/customers",
         icon: Users,
@@ -48,6 +55,17 @@ export function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
 
     const pathname = usePathname();
+    const router = useRouter();
+    const user = useAuthStore((s) => s.user);
+    const logout = useAuthStore((s) => s.logout);
+
+    const displayName = user ? `${user.firstName} ${user.lastName}` : "Admin";
+    const displayRole = user?.role ?? "";
+
+    function handleLogout() {
+        logout();
+        router.push("/login");
+    }
 
     return (
         <aside
@@ -94,11 +112,11 @@ export function Sidebar() {
                 </div>
 
                 <h2 className="mt-5 text-2xl font-serif text-[#E5C16A]">
-                    Adaeze Okoro
+                    {displayName}
                 </h2>
 
                 <p className="mt-1 text-[11px] tracking-[4px] uppercase text-gray-400">
-                    Admin
+                    {displayRole}
                 </p>
             </div>
 
@@ -135,6 +153,7 @@ export function Sidebar() {
             <div className="pt-6 border-t border-white/10">
 
                 <button
+                    onClick={handleLogout}
                     className="
             w-full
             rounded-full

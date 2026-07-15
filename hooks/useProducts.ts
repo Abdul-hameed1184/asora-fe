@@ -182,9 +182,15 @@ export function useCreateProduct() {
       });
 
       // Optimistically prepend a placeholder product to every cached list.
+      // Variant `price` is optional on write (server defaults it to basePrice)
+      // but required for display — resolve it here for the placeholder.
       const optimisticProduct: Product = {
         id: `optimistic-${Date.now()}`,
         ...newProduct,
+        variants: newProduct.variants.map((v) => ({
+          ...v,
+          price: v.price ?? newProduct.basePrice,
+        })),
         createdAt: new Date().toISOString(),
       };
 
@@ -254,10 +260,41 @@ export function useUpdateProduct() {
         queryKey: productKeys.lists(),
       });
 
+      // `payload.variants` is a partial patch — each entry only carries the
+      // fields that changed for an existing variant (matched by `id`), or a
+      // full row for a brand-new one. Merge by id rather than replacing the
+      // whole array, so untouched variants aren't dropped from the cache.
+      const mergeVariants = (base: Product) => {
+        if (!payload.variants) return base.variants;
+
+        const merged = base.variants.map((existing) => {
+          const patch = payload.variants!.find((v) => v.id === existing.id);
+          return patch ? { ...existing, ...patch } : existing;
+        });
+
+        const newRows = payload.variants
+          .filter((v) => !v.id)
+          .map((v, i) => ({
+            id: `optimistic-variant-${i}-${v.size}-${v.color}`,
+            size: v.size ?? "",
+            color: v.color ?? "",
+            stock: v.stock ?? 0,
+            price: v.price ?? payload.basePrice ?? base.basePrice,
+          }));
+
+        return [...merged, ...newRows];
+      };
+
       // Patch the detail cache immediately.
       if (previousDetail) {
         qc.setQueryData<Product>(productKeys.detail(id), (old) =>
-          old ? { ...old, ...payload } : old
+          old
+            ? {
+                ...old,
+                ...payload,
+                variants: mergeVariants(old),
+              }
+            : old
         );
       }
 
@@ -269,7 +306,9 @@ export function useUpdateProduct() {
           return {
             ...old,
             data: old.data.map((p) =>
-              p.id === id ? { ...p, ...payload } : p
+              p.id === id
+                ? { ...p, ...payload, variants: mergeVariants(p) }
+                : p
             ),
           };
         }
