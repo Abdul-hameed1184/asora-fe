@@ -47,6 +47,15 @@ export const OrderService = {
         return res.data;
     },
 
+    async getAdminOrderById(id: string) {
+        const res =
+            await apiClient.get<ApiSuccess<Order>>(
+                `/orders/admin/${id}`
+            );
+
+        return res.data;
+    },
+
     async cancel(
         id: string,
         data: CancelOrderDto

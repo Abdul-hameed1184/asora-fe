@@ -11,6 +11,8 @@ import {
     LogOut,
     LayoutGrid,
     History,
+    Menu,
+    X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -53,6 +55,7 @@ const navigation = [
 
 export function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     const pathname = usePathname();
     const router = useRouter();
@@ -62,34 +65,76 @@ export function Sidebar() {
     const displayName = user ? `${user.firstName} ${user.lastName}` : "Admin";
     const displayRole = user?.role ?? "";
 
+    // Close the mobile drawer whenever the route changes (e.g. a nav link was tapped).
+    const [lastPathname, setLastPathname] = useState(pathname);
+    if (pathname !== lastPathname) {
+        setLastPathname(pathname);
+        setMobileOpen(false);
+    }
+
     function handleLogout() {
         logout();
         router.push("/login");
     }
 
     return (
-        <aside
-            className={cn(
-                "flex flex-col h-screen bg-zinc-900 text-zinc-400 transition-all duration-[220ms] ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden border-r border-white/[0.06] p-3",
-                collapsed ? "w-14 min-w-14" : "w-[17vw]"
-            )}
-        >
-            {/* Header */}
-            <div
+        <>
+            {/* Mobile trigger — fixed, always reachable regardless of scroll position */}
+            <button
+                onClick={() => setMobileOpen(true)}
                 className={cn(
-                    "flex justify-end items-center h-14 flex-shrink-0 transition-all",
-                    collapsed ? "justify-center px-0" : "justify-end px-4"
+                    "md:hidden fixed top-4 left-4 z-50 h-11 w-11 rounded-full bg-zinc-900 border border-white/10 text-[#D5A53B] flex items-center justify-center shadow-lg transition-opacity",
+                    mobileOpen && "opacity-0 pointer-events-none"
+                )}
+                aria-label="Open menu"
+            >
+                <Menu size={20} />
+            </button>
+
+            {/* Backdrop — mobile only, closes the drawer on tap */}
+            {mobileOpen && (
+                <div
+                    className="md:hidden fixed inset-0 z-40 bg-black/50"
+                    onClick={() => setMobileOpen(false)}
+                    aria-hidden="true"
+                />
+            )}
+
+            <aside
+                className={cn(
+                    "flex flex-col bg-zinc-900 text-zinc-400 overflow-hidden border-r border-white/[0.06] p-3",
+                    // Mobile: fixed-position drawer that slides in from the left
+                    "fixed inset-y-0 left-0 z-50 h-screen w-72 transition-transform duration-300 ease-in-out",
+                    mobileOpen ? "translate-x-0" : "-translate-x-full",
+                    // Desktop (md+): static, always visible, collapsible width
+                    "md:static md:translate-x-0 md:h-screen md:transition-all md:duration-[220ms] md:ease-[cubic-bezier(0.4,0,0.2,1)]",
+                    collapsed ? "md:w-14 md:min-w-14" : "md:w-[17vw]"
                 )}
             >
-
-                <button
-                    onClick={() => setCollapsed((c) => !c)}
-                    className="w-7 h-7 rounded-md flex  items-center justify-center text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors flex-shrink-0"
-                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                {/* Header */}
+                <div
+                    className={cn(
+                        "flex justify-between md:justify-end items-center h-14 flex-shrink-0 transition-all",
+                        collapsed ? "md:justify-center md:px-0" : "md:justify-end md:px-4"
+                    )}
                 >
-                    {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                </button>
-            </div>
+                    {/* Mobile-only close button */}
+                    <button
+                        onClick={() => setMobileOpen(false)}
+                        className="md:hidden w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors flex-shrink-0"
+                        aria-label="Close menu"
+                    >
+                        <X size={18} />
+                    </button>
+
+                    <button
+                        onClick={() => setCollapsed((c) => !c)}
+                        className="hidden md:flex w-7 h-7 rounded-md items-center justify-center text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100 transition-colors flex-shrink-0"
+                        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    >
+                        {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                    </button>
+                </div>
             <div className="text-center">
                 <h1 className="text-[36px] font-serif text-[#D5A53B] leading-none">
                     `&apos; Aṣora Clothiers
@@ -178,6 +223,7 @@ export function Sidebar() {
                 </button>
 
             </div>
-        </aside>
+            </aside>
+        </>
     );
 }

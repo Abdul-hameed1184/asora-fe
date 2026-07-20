@@ -21,3 +21,21 @@ export async function fetchCategories(): Promise<CategoryListResponse> {
   const result = await ProductService.getCategories();
   return result.data;
 }
+
+/** POST /categories — create a new category (name + description required) */
+export async function createCategory(data: {
+  name: string;
+  description: string;
+}): Promise<Category> {
+  const result = await ProductService.createCategory(data);
+  return result.data;
+}
+
+/** PUT /categories/:id — update a category's name and/or description */
+export async function updateCategory(
+  id: string,
+  data: { name?: string; description?: string }
+): Promise<Category> {
+  const result = await ProductService.updateCategory(id, data);
+  return result.data;
+}

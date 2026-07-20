@@ -4,21 +4,25 @@ import { useState } from "react";
 import {
   Search,
   Bell,
-  SlidersHorizontal,
-  ChevronDown,
+  RotateCcw,
   Plus,
   MoreVertical,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  AlertCircle,
   PackageOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ProductDrawer from "@/app/admin/components/ProductDrawer";
+import ProductDrawer, { VARIANT_SIZES } from "@/app/admin/components/ProductDrawer";
 import { useProductDrawerStore } from "@/lib/stores/useProductDrawerStore";
 import { useAdminProducts, useDeleteProduct } from "@/hooks/useProducts";
 import type { ProductFilters } from "@/lib/api/products.api";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { FilterSelect } from "@/components/ui/FilterSelect";
+import { PageSizeSelect } from "@/components/ui/PageSizeSelect";
+
+const SIZE_OPTIONS = VARIANT_SIZES.map((size) => ({ label: size, value: size }));
 
 // ---------------------------------------------------------------------------
 // Page
@@ -26,16 +30,27 @@ import type { ProductFilters } from "@/lib/api/products.api";
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<"PUBLISHED" | "DRAFT">("PUBLISHED");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const { openNew, openManageStock } = useProductDrawerStore();
+
+  const hasActiveFilters = !!searchQuery || !!sizeFilter;
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSizeFilter("");
+    setPage(1);
+  };
 
   // ── Build filters from UI state ──────────────────────────────────────────
   const filters: ProductFilters = {
     page,
-    limit: 12,
+    limit,
     search: searchQuery || undefined,
     status: activeTab,
+    size: sizeFilter || undefined,
     sortBy: "createdAt",
     sortOrder: "desc",
   };
@@ -48,6 +63,7 @@ export default function InventoryPage() {
     isError,
     error,
     isPlaceholderData,
+    refetch,
   } = useAdminProducts(filters);
 
   // ── Delete — optimistic cache update handled inside useDeleteProduct ─────
@@ -149,13 +165,23 @@ export default function InventoryPage() {
               ))}
             </div>
 
-            <button className="flex items-center gap-3 bg-white border border-border px-5 py-2.5 text-xs font-courier font-bold uppercase tracking-wider text-zinc-600 hover:border-zinc-400 transition-colors">
-              <span>Filter by size</span>
-              <ChevronDown size={14} />
-            </button>
+            <FilterSelect
+              value={sizeFilter}
+              onChange={(v) => {
+                setSizeFilter(v);
+                setPage(1);
+              }}
+              options={SIZE_OPTIONS}
+              placeholder="Filter by size"
+            />
 
-            <button className="p-3 bg-white border border-border text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors">
-              <SlidersHorizontal size={16} />
+            <button
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              title="Clear filters"
+              className="p-3 bg-white border border-border text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RotateCcw size={16} />
             </button>
 
             <button
@@ -176,8 +202,8 @@ export default function InventoryPage() {
             isPlaceholderData && "opacity-70"
           )}
         >
-          {/* Column Headers */}
-          <div className="grid grid-cols-12 gap-4 px-8 py-5 border-b border-border bg-[#FAF9F6] text-xs font-courier font-bold uppercase tracking-[2px] text-zinc-500">
+          {/* Column Headers (lg and up) */}
+          <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-8 py-5 border-b border-border bg-[#FAF9F6] text-xs font-courier font-bold uppercase tracking-[2px] text-zinc-500">
             <div className="col-span-5">Product Details</div>
             <div className="col-span-2 text-center">Category</div>
             <div className="col-span-3 text-center">Stock by Size</div>
@@ -186,187 +212,272 @@ export default function InventoryPage() {
 
           {/* ── Loading skeleton — first fetch only ─────────────────────── */}
           {isPending && (
-            <div className="divide-y divide-border">
-              {[...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-12 gap-4 px-8 py-6 items-center animate-pulse"
-                >
-                  <div className="col-span-5 flex items-center gap-4">
-                    <div className="h-16 w-16 bg-zinc-100 flex-shrink-0" />
+            <>
+              {/* Desktop / tablet skeleton */}
+              <div className="hidden lg:block divide-y divide-border">
+                {[...Array(5)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-12 gap-4 px-8 py-6 items-center animate-pulse"
+                  >
+                    <div className="col-span-5 flex items-center gap-4">
+                      <div className="h-16 w-16 bg-zinc-100 flex-shrink-0" />
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 bg-zinc-100 rounded w-3/4" />
+                        <div className="h-3 bg-zinc-100 rounded w-1/2" />
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      <div className="h-4 bg-zinc-100 rounded w-20" />
+                    </div>
+                    <div className="col-span-3 flex justify-center gap-2">
+                      {[...Array(4)].map((_, j) => (
+                        <div key={j} className="h-12 w-11 bg-zinc-100" />
+                      ))}
+                    </div>
+                    <div className="col-span-2 flex justify-end gap-2">
+                      <div className="h-7 bg-zinc-100 rounded w-16" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mobile skeleton */}
+              <div className="lg:hidden divide-y divide-border">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="px-6 py-5 flex items-center gap-4 animate-pulse">
+                    <div className="h-14 w-14 bg-zinc-100 flex-shrink-0" />
                     <div className="space-y-2 flex-1">
                       <div className="h-4 bg-zinc-100 rounded w-3/4" />
                       <div className="h-3 bg-zinc-100 rounded w-1/2" />
+                      <div className="h-3 bg-zinc-100 rounded w-1/3" />
                     </div>
                   </div>
-                  <div className="col-span-2 flex justify-center">
-                    <div className="h-4 bg-zinc-100 rounded w-20" />
-                  </div>
-                  <div className="col-span-3 flex justify-center gap-2">
-                    {[...Array(4)].map((_, j) => (
-                      <div key={j} className="h-12 w-11 bg-zinc-100" />
-                    ))}
-                  </div>
-                  <div className="col-span-2 flex justify-end gap-2">
-                    <div className="h-7 bg-zinc-100 rounded w-16" />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* ── Error state ─────────────────────────────────────────────── */}
           {isError && !isPending && (
-            <div className="py-20 flex flex-col items-center gap-4 text-center px-8">
-              <div className="h-12 w-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
-                <AlertCircle size={22} className="text-[#C23A3A]" />
-              </div>
-              <div>
-                <p className="font-garamound text-lg font-bold text-zinc-900">
-                  Could not load products
-                </p>
-                <p className="text-xs font-courier text-zinc-400 mt-1 max-w-sm">
-                  {(error as Error)?.message ?? "An unexpected error occurred. Please try again."}
-                </p>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-2 text-xs font-courier font-bold uppercase tracking-wider text-[#C99A36] hover:text-[#B0852E] border border-[#C99A36]/40 hover:border-[#C99A36] px-4 py-2 transition-colors"
-              >
-                Retry
-              </button>
-            </div>
+            <ErrorState
+              title="Could not load products"
+              message={(error as Error)?.message}
+              onRetry={() => refetch()}
+            />
           )}
 
           {/* ── Empty state ─────────────────────────────────────────────── */}
           {isEmpty && (
-            <div className="py-20 flex flex-col items-center gap-4 text-center px-8">
-              <div className="h-12 w-12 rounded-full bg-zinc-50 border border-zinc-100 flex items-center justify-center">
-                <PackageOpen size={22} className="text-zinc-300" />
-              </div>
-              <div>
-                <p className="font-garamound text-lg font-bold text-zinc-900">
-                  No products found
-                </p>
-                <p className="text-xs font-courier text-zinc-400 mt-1">
-                  {searchQuery
-                    ? `No results for "${searchQuery}" in ${activeTab.toLowerCase()} products.`
-                    : `You have no ${activeTab.toLowerCase()} products yet.`}
-                </p>
-              </div>
-              {!searchQuery && (
-                <button
-                  onClick={openNew}
-                  className="mt-2 bg-[#C99A36] hover:bg-[#B0852E] text-white flex items-center gap-2 px-5 py-2.5 text-xs font-courier font-bold uppercase tracking-wider transition-colors"
-                >
-                  <Plus size={14} />
-                  <span>Add First Product</span>
-                </button>
-              )}
-            </div>
+            <EmptyState
+              icon={PackageOpen}
+              title="No products found"
+              description={
+                searchQuery
+                  ? `No results for "${searchQuery}" in ${activeTab.toLowerCase()} products.`
+                  : sizeFilter
+                    ? `No ${activeTab.toLowerCase()} products in size ${sizeFilter}.`
+                    : `You have no ${activeTab.toLowerCase()} products yet.`
+              }
+              actionLabel={!hasActiveFilters ? "Add First Product" : undefined}
+              actionIcon={!hasActiveFilters ? Plus : undefined}
+              onAction={!hasActiveFilters ? openNew : undefined}
+            />
           )}
 
           {/* ── Product rows ────────────────────────────────────────────── */}
           {!isPending && !isError && products.length > 0 && (
             <div className="divide-y divide-border">
               {products.map((product) => (
-                <div
-                  key={product.id}
-                  className="grid grid-cols-12 gap-4 px-8 py-6 items-center hover:bg-zinc-50/50 transition-colors"
-                >
-                  {/* Product Details */}
-                  <div className="col-span-5 flex items-center gap-4">
-                    <div className="h-16 w-16 bg-zinc-50 border border-border overflow-hidden flex items-center justify-center p-1 flex-shrink-0">
-                      <img
-                        src={product.featuredImage}
-                        alt={product.name}
-                        className="h-full w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "/placeholder.jpg";
-                        }}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-garamound text-xl font-bold text-zinc-950 leading-tight truncate">
-                          {product.name}
-                        </h4>
-                        {product.isFeatured && (
-                          <span className="text-[9px] font-courier font-bold uppercase tracking-wider bg-[#FBF4E3] text-[#C99A36] px-1.5 py-0.5 flex-shrink-0">
-                            Featured
-                          </span>
-                        )}
+                <div key={product.id} className="hover:bg-zinc-50/50 transition-colors">
+                  {/* Desktop / tablet row */}
+                  <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-8 py-6 items-center">
+                    {/* Product Details */}
+                    <div className="col-span-5 flex items-center gap-4">
+                      <div className="h-16 w-16 bg-zinc-50 border border-border overflow-hidden flex items-center justify-center p-1 flex-shrink-0">
+                        <img
+                          src={product.featuredImage}
+                          alt={product.name}
+                          className="h-full w-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/placeholder.jpg";
+                          }}
+                        />
                       </div>
-                      <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1 truncate">
-                        ₦{product.basePrice.toLocaleString()} base ·{" "}
-                        <span
-                          className={cn(
-                            "uppercase",
-                            product.status === "PUBLISHED"
-                              ? "text-emerald-600"
-                              : product.status === "ARCHIVED"
-                                ? "text-zinc-400"
-                                : "text-amber-600"
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-garamound text-xl font-bold text-zinc-950 leading-tight truncate">
+                            {product.name}
+                          </h4>
+                          {product.isFeatured && (
+                            <span className="text-[9px] font-courier font-bold uppercase tracking-wider bg-[#FBF4E3] text-[#C99A36] px-1.5 py-0.5 flex-shrink-0">
+                              Featured
+                            </span>
                           )}
-                        >
-                          {product.status}
-                        </span>
-                      </p>
+                        </div>
+                        <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1 truncate">
+                          ₦{product.basePrice.toLocaleString()} base ·{" "}
+                          <span
+                            className={cn(
+                              "uppercase",
+                              product.status === "PUBLISHED"
+                                ? "text-emerald-600"
+                                : product.status === "ARCHIVED"
+                                  ? "text-zinc-400"
+                                  : "text-amber-600"
+                            )}
+                          >
+                            {product.status}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div className="col-span-2 text-center text-sm font-courier text-zinc-600">
+                      {product.category}
+                    </div>
+
+                    {/* Stock pills */}
+                    <div className="col-span-3 flex justify-center items-center gap-2 flex-wrap">
+                      {product.variants.map((v, idx) => {
+                        const isOut = v.stock === 0;
+                        const isLow = v.stock > 0 && v.stock < 5;
+                        return (
+                          <div
+                            key={idx}
+                            title={`${v.color} · ₦${v.price.toLocaleString()}`}
+                            className={cn(
+                              "flex flex-col items-center justify-center border w-11 h-12 text-center",
+                              isOut
+                                ? "border-[#E5C3C3] bg-[#FCF5F5] text-[#C23A3A]"
+                                : isLow
+                                  ? "border-[#F5E4B2] bg-[#FFFBF0] text-[#A86400]"
+                                  : "border-[#E8F1FD] bg-[#F8FAFC] text-zinc-800"
+                            )}
+                          >
+                            <span className="text-[10px] font-courier font-bold text-zinc-400 block -mt-1 leading-none uppercase">
+                              {v.size}
+                            </span>
+                            <span className="text-sm font-semibold mt-1.5 leading-none block">
+                              {v.stock < 10 && v.stock > 0
+                                ? `0${v.stock}`
+                                : v.stock}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-2 flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => openManageStock(product)}
+                        className="text-xs font-courier font-bold uppercase tracking-wider text-zinc-600 hover:text-zinc-950 border border-zinc-200 px-3 py-1.5 hover:border-zinc-400 transition-colors"
+                      >
+                        Manage
+                      </button>
+                      <button
+                        onClick={() => deleteProduct.mutate(product.id)}
+                        disabled={deleteProduct.isPending}
+                        className="p-2 text-zinc-400 hover:text-[#C23A3A] transition-colors disabled:opacity-40"
+                        title="Delete product"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Category */}
-                  <div className="col-span-2 text-center text-sm font-courier text-zinc-600">
-                    {product.category}
-                  </div>
-
-                  {/* Stock pills */}
-                  <div className="col-span-3 flex justify-center items-center gap-2 flex-wrap">
-                    {product.variants.map((v, idx) => {
-                      const isOut = v.stock === 0;
-                      const isLow = v.stock > 0 && v.stock < 5;
-                      return (
-                        <div
-                          key={idx}
-                          title={`${v.color} · ₦${v.price.toLocaleString()}`}
-                          className={cn(
-                            "flex flex-col items-center justify-center border w-11 h-12 text-center",
-                            isOut
-                              ? "border-[#E5C3C3] bg-[#FCF5F5] text-[#C23A3A]"
-                              : isLow
-                                ? "border-[#F5E4B2] bg-[#FFFBF0] text-[#A86400]"
-                                : "border-[#E8F1FD] bg-[#F8FAFC] text-zinc-800"
+                  {/* Mobile / tablet card */}
+                  <div className="lg:hidden px-6 py-5">
+                    <div className="flex items-start gap-4">
+                      <div className="h-16 w-16 bg-zinc-50 border border-border overflow-hidden flex items-center justify-center p-1 flex-shrink-0">
+                        <img
+                          src={product.featuredImage}
+                          alt={product.name}
+                          className="h-full w-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/placeholder.jpg";
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-garamound text-lg font-bold text-zinc-950 leading-tight truncate">
+                            {product.name}
+                          </h4>
+                          {product.isFeatured && (
+                            <span className="text-[9px] font-courier font-bold uppercase tracking-wider bg-[#FBF4E3] text-[#C99A36] px-1.5 py-0.5 flex-shrink-0">
+                              Featured
+                            </span>
                           )}
-                        >
-                          <span className="text-[10px] font-courier font-bold text-zinc-400 block -mt-1 leading-none uppercase">
-                            {v.size}
-                          </span>
-                          <span className="text-sm font-semibold mt-1.5 leading-none block">
-                            {v.stock < 10 && v.stock > 0
-                              ? `0${v.stock}`
-                              : v.stock}
-                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1">
+                          {product.category} · ₦{product.basePrice.toLocaleString()} base ·{" "}
+                          <span
+                            className={cn(
+                              "uppercase",
+                              product.status === "PUBLISHED"
+                                ? "text-emerald-600"
+                                : product.status === "ARCHIVED"
+                                  ? "text-zinc-400"
+                                  : "text-amber-600"
+                            )}
+                          >
+                            {product.status}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
 
-                  {/* Actions */}
-                  <div className="col-span-2 flex items-center justify-end gap-3">
-                    <button
-                      onClick={() => openManageStock(product)}
-                      className="text-xs font-courier font-bold uppercase tracking-wider text-zinc-600 hover:text-zinc-950 border border-zinc-200 px-3 py-1.5 hover:border-zinc-400 transition-colors"
-                    >
-                      Manage
-                    </button>
-                    <button
-                      onClick={() => deleteProduct.mutate(product.id)}
-                      disabled={deleteProduct.isPending}
-                      className="p-2 text-zinc-400 hover:text-[#C23A3A] transition-colors disabled:opacity-40"
-                      title="Delete product"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
+                    {/* Stock pills */}
+                    <div className="flex items-center gap-2 flex-wrap mt-4">
+                      {product.variants.map((v, idx) => {
+                        const isOut = v.stock === 0;
+                        const isLow = v.stock > 0 && v.stock < 5;
+                        return (
+                          <div
+                            key={idx}
+                            title={`${v.color} · ₦${v.price.toLocaleString()}`}
+                            className={cn(
+                              "flex flex-col items-center justify-center border w-11 h-12 text-center",
+                              isOut
+                                ? "border-[#E5C3C3] bg-[#FCF5F5] text-[#C23A3A]"
+                                : isLow
+                                  ? "border-[#F5E4B2] bg-[#FFFBF0] text-[#A86400]"
+                                  : "border-[#E8F1FD] bg-[#F8FAFC] text-zinc-800"
+                            )}
+                          >
+                            <span className="text-[10px] font-courier font-bold text-zinc-400 block -mt-1 leading-none uppercase">
+                              {v.size}
+                            </span>
+                            <span className="text-sm font-semibold mt-1.5 leading-none block">
+                              {v.stock < 10 && v.stock > 0
+                                ? `0${v.stock}`
+                                : v.stock}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-3 mt-4">
+                      <button
+                        onClick={() => openManageStock(product)}
+                        className="text-xs font-courier font-bold uppercase tracking-wider text-zinc-600 hover:text-zinc-950 border border-zinc-200 px-3 py-1.5 hover:border-zinc-400 transition-colors"
+                      >
+                        Manage
+                      </button>
+                      <button
+                        onClick={() => deleteProduct.mutate(product.id)}
+                        disabled={deleteProduct.isPending}
+                        className="p-2 text-zinc-400 hover:text-[#C23A3A] transition-colors disabled:opacity-40"
+                        title="Delete product"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -405,6 +516,13 @@ export default function InventoryPage() {
             <span className="text-xs font-courier tracking-wide text-zinc-400">
               SHOWING {products.length} OF {pagination?.total ?? 0}
             </span>
+            <PageSizeSelect
+              value={limit}
+              onChange={(v) => {
+                setLimit(v);
+                setPage(1);
+              }}
+            />
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}

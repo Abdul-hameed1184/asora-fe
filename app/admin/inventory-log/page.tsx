@@ -4,11 +4,10 @@ import { useState } from "react";
 import {
   Search,
   Bell,
-  ChevronDown,
+  RotateCcw,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  AlertCircle,
   History,
   ArrowUpCircle,
   ArrowDownCircle,
@@ -19,7 +18,25 @@ import { useInventoryLogs } from "@/hooks/useInventoryLogs";
 import type {
   InventoryLogFilters,
   InventoryMovementType,
+  InventoryReason,
 } from "@/lib/api/inventory-log.api";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { FilterSelect } from "@/components/ui/FilterSelect";
+import { PageSizeSelect } from "@/components/ui/PageSizeSelect";
+
+const REASON_OPTIONS: { label: string; value: InventoryReason }[] = [
+  { label: "Initial Stock", value: "INITIAL_STOCK" },
+  { label: "Purchase Order", value: "PURCHASE_ORDER" },
+  { label: "Stock Return", value: "STOCK_RETURN" },
+  { label: "Damaged Item", value: "DAMAGED_ITEM" },
+  { label: "Sales Order", value: "SALES_ORDER" },
+  { label: "Refund", value: "REFUND" },
+  { label: "Inventory Adjustment", value: "INVENTORY_ADJUSTMENT" },
+  { label: "Manual Correction", value: "MANUAL_CORRECTION" },
+  { label: "Recount", value: "RECOUNT" },
+  { label: "Transfer", value: "TRANSFER" },
+];
 
 // ---------------------------------------------------------------------------
 // Page
@@ -27,16 +44,27 @@ import type {
 export default function InventoryLogPage() {
   const [activeTab, setActiveTab] = useState<InventoryMovementType | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [reasonFilter, setReasonFilter] = useState<InventoryReason | "">("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const user = useAuthStore((s) => s.user);
+
+  const hasActiveFilters = !!searchQuery || !!reasonFilter;
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setReasonFilter("");
+    setPage(1);
+  };
 
   // ── Build filters from UI state ──────────────────────────────────────────
   const filters: InventoryLogFilters = {
     page,
-    limit: 15,
+    limit,
     search: searchQuery || undefined,
     type: activeTab === "ALL" ? undefined : activeTab,
+    reason: reasonFilter || undefined,
     sortOrder: "desc",
   };
 
@@ -48,6 +76,7 @@ export default function InventoryLogPage() {
     isError,
     error,
     isPlaceholderData,
+    refetch,
   } = useInventoryLogs(filters);
 
   const logs = data?.data ?? [];
@@ -149,9 +178,23 @@ export default function InventoryLogPage() {
               ))}
             </div>
 
-            <button className="flex items-center gap-3 bg-white border border-border px-5 py-2.5 text-xs font-courier font-bold uppercase tracking-wider text-zinc-600 hover:border-zinc-400 transition-colors">
-              <span>Filter by reason</span>
-              <ChevronDown size={14} />
+            <FilterSelect
+              value={reasonFilter}
+              onChange={(v) => {
+                setReasonFilter(v as InventoryReason | "");
+                setPage(1);
+              }}
+              options={REASON_OPTIONS}
+              placeholder="Filter by reason"
+            />
+
+            <button
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              title="Clear filters"
+              className="p-3 bg-white border border-border text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RotateCcw size={16} />
             </button>
           </div>
         </section>
@@ -163,8 +206,8 @@ export default function InventoryLogPage() {
             isPlaceholderData && "opacity-70"
           )}
         >
-          {/* Column Headers */}
-          <div className="grid grid-cols-12 gap-4 px-8 py-5 border-b border-border bg-[#FAF9F6] text-xs font-courier font-bold uppercase tracking-[2px] text-zinc-500">
+          {/* Column Headers (lg and up) */}
+          <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-8 py-5 border-b border-border bg-[#FAF9F6] text-xs font-courier font-bold uppercase tracking-[2px] text-zinc-500">
             <div className="col-span-4">Variant</div>
             <div className="col-span-2 text-center">Type / Reason</div>
             <div className="col-span-2 text-center">Stock Change</div>
@@ -174,151 +217,227 @@ export default function InventoryLogPage() {
 
           {/* ── Loading skeleton — first fetch only ─────────────────────── */}
           {isPending && (
-            <div className="divide-y divide-border">
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-12 gap-4 px-8 py-6 items-center animate-pulse"
-                >
-                  <div className="col-span-4 space-y-2">
+            <>
+              {/* Desktop / tablet skeleton */}
+              <div className="hidden lg:block divide-y divide-border">
+                {[...Array(6)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-12 gap-4 px-8 py-6 items-center animate-pulse"
+                  >
+                    <div className="col-span-4 space-y-2">
+                      <div className="h-4 bg-zinc-100 rounded w-3/4" />
+                      <div className="h-3 bg-zinc-100 rounded w-1/2" />
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      <div className="h-4 bg-zinc-100 rounded w-20" />
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      <div className="h-4 bg-zinc-100 rounded w-16" />
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      <div className="h-4 bg-zinc-100 rounded w-16" />
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <div className="h-4 bg-zinc-100 rounded w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mobile skeleton */}
+              <div className="lg:hidden divide-y divide-border">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="px-6 py-5 space-y-2 animate-pulse">
                     <div className="h-4 bg-zinc-100 rounded w-3/4" />
                     <div className="h-3 bg-zinc-100 rounded w-1/2" />
+                    <div className="h-3 bg-zinc-100 rounded w-1/3" />
                   </div>
-                  <div className="col-span-2 flex justify-center">
-                    <div className="h-4 bg-zinc-100 rounded w-20" />
-                  </div>
-                  <div className="col-span-2 flex justify-center">
-                    <div className="h-4 bg-zinc-100 rounded w-16" />
-                  </div>
-                  <div className="col-span-2 flex justify-center">
-                    <div className="h-4 bg-zinc-100 rounded w-16" />
-                  </div>
-                  <div className="col-span-2 flex justify-end">
-                    <div className="h-4 bg-zinc-100 rounded w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* ── Error state ─────────────────────────────────────────────── */}
           {isError && !isPending && (
-            <div className="py-20 flex flex-col items-center gap-4 text-center px-8">
-              <div className="h-12 w-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
-                <AlertCircle size={22} className="text-[#C23A3A]" />
-              </div>
-              <div>
-                <p className="font-garamound text-lg font-bold text-zinc-900">
-                  Could not load inventory logs
-                </p>
-                <p className="text-xs font-courier text-zinc-400 mt-1 max-w-sm">
-                  {(error as Error)?.message ?? "An unexpected error occurred. Please try again."}
-                </p>
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-2 text-xs font-courier font-bold uppercase tracking-wider text-[#C99A36] hover:text-[#B0852E] border border-[#C99A36]/40 hover:border-[#C99A36] px-4 py-2 transition-colors"
-              >
-                Retry
-              </button>
-            </div>
+            <ErrorState
+              title="Could not load inventory logs"
+              message={(error as Error)?.message}
+              onRetry={() => refetch()}
+            />
           )}
 
           {/* ── Empty state ─────────────────────────────────────────────── */}
           {isEmpty && (
-            <div className="py-20 flex flex-col items-center gap-4 text-center px-8">
-              <div className="h-12 w-12 rounded-full bg-zinc-50 border border-zinc-100 flex items-center justify-center">
-                <History size={22} className="text-zinc-300" />
-              </div>
-              <div>
-                <p className="font-garamound text-lg font-bold text-zinc-900">
-                  No inventory movements found
-                </p>
-                <p className="text-xs font-courier text-zinc-400 mt-1">
-                  {searchQuery
-                    ? `No results for "${searchQuery}".`
-                    : "Stock movements will appear here as they happen."}
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              icon={History}
+              title="No inventory movements found"
+              description={
+                searchQuery
+                  ? `No results for "${searchQuery}".`
+                  : hasActiveFilters
+                    ? "No inventory movements match the current filters."
+                    : "Stock movements will appear here as they happen."
+              }
+            />
           )}
 
           {/* ── Log rows ─────────────────────────────────────────────────── */}
           {!isPending && !isError && logs.length > 0 && (
             <div className="divide-y divide-border">
               {logs.map((log) => (
-                <div
-                  key={log.id}
-                  className="grid grid-cols-12 gap-4 px-8 py-6 items-center hover:bg-zinc-50/50 transition-colors"
-                >
-                  {/* Variant */}
-                  <div className="col-span-4 min-w-0">
-                    <h4 className="font-garamound text-lg font-bold text-zinc-950 leading-tight truncate">
-                      {log.variant?.product?.name ?? "Unknown product"}
-                    </h4>
-                    <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1 truncate">
-                      {log.variant?.sku} · {log.variant?.color} / {log.variant?.size}
-                    </p>
-                  </div>
+                <div key={log.id} className="hover:bg-zinc-50/50 transition-colors">
+                  {/* Desktop / tablet row */}
+                  <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-8 py-6 items-center">
+                    {/* Variant */}
+                    <div className="col-span-4 min-w-0">
+                      <h4 className="font-garamound text-lg font-bold text-zinc-950 leading-tight truncate">
+                        {log.variant?.product?.name ?? "Unknown product"}
+                      </h4>
+                      <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1 truncate">
+                        {log.variant?.sku} · {log.variant?.color} / {log.variant?.size}
+                      </p>
+                    </div>
 
-                  {/* Type / Reason */}
-                  <div className="col-span-2 flex flex-col items-center gap-1">
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5 text-xs font-courier font-bold uppercase tracking-wider",
-                        log.type === "IN" ? "text-emerald-600" : "text-[#C23A3A]"
-                      )}
-                    >
-                      {log.type === "IN" ? (
-                        <ArrowUpCircle size={14} />
-                      ) : (
-                        <ArrowDownCircle size={14} />
-                      )}
-                      {log.type}
-                    </span>
-                    <span className="text-[10px] font-courier text-zinc-400 uppercase tracking-wide">
-                      {log.reason.replace(/_/g, " ")}
-                    </span>
-                  </div>
-
-                  {/* Stock Change */}
-                  <div className="col-span-2 text-center">
-                    <p className="text-sm font-semibold text-zinc-900">
-                      {log.previousStock} → {log.newStock}
-                    </p>
-                    <p className="text-[10px] font-courier text-zinc-400 uppercase tracking-wide">
-                      Qty {log.quantity}
-                    </p>
-                  </div>
-
-                  {/* Reference */}
-                  <div className="col-span-2 text-center text-xs font-courier text-zinc-500">
-                    {log.referenceType ? (
-                      <>
-                        <p className="uppercase">{log.referenceType}</p>
-                        {log.referenceId && (
-                          <p className="text-zinc-400 truncate" title={log.referenceId}>
-                            {log.referenceId.slice(0, 8)}…
-                          </p>
+                    {/* Type / Reason */}
+                    <div className="col-span-2 flex flex-col items-center gap-1">
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5 text-xs font-courier font-bold uppercase tracking-wider",
+                          log.type === "IN" ? "text-emerald-600" : "text-[#C23A3A]"
                         )}
-                      </>
-                    ) : (
-                      "—"
-                    )}
+                      >
+                        {log.type === "IN" ? (
+                          <ArrowUpCircle size={14} />
+                        ) : (
+                          <ArrowDownCircle size={14} />
+                        )}
+                        {log.type}
+                      </span>
+                      <span className="text-[10px] font-courier text-zinc-400 uppercase tracking-wide">
+                        {log.reason.replace(/_/g, " ")}
+                      </span>
+                    </div>
+
+                    {/* Stock Change */}
+                    <div className="col-span-2 text-center">
+                      <p className="text-sm font-semibold text-zinc-900">
+                        {log.previousStock} → {log.newStock}
+                      </p>
+                      <p className="text-[10px] font-courier text-zinc-400 uppercase tracking-wide">
+                        Qty {log.quantity}
+                      </p>
+                    </div>
+
+                    {/* Reference */}
+                    <div className="col-span-2 text-center text-xs font-courier text-zinc-500">
+                      {log.referenceType ? (
+                        <>
+                          <p className="uppercase">{log.referenceType}</p>
+                          {log.referenceId && (
+                            <p className="text-zinc-400 truncate" title={log.referenceId}>
+                              {log.referenceId.slice(0, 8)}…
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </div>
+
+                    {/* Date */}
+                    <div className="col-span-2 text-right text-xs font-courier text-zinc-500">
+                      {new Date(log.createdAt).toLocaleDateString("en-NG", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                      <br />
+                      {new Date(log.createdAt).toLocaleTimeString("en-NG", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
                   </div>
 
-                  {/* Date */}
-                  <div className="col-span-2 text-right text-xs font-courier text-zinc-500">
-                    {new Date(log.createdAt).toLocaleDateString("en-NG", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                    <br />
-                    {new Date(log.createdAt).toLocaleTimeString("en-NG", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  {/* Mobile / tablet card */}
+                  <div className="lg:hidden px-6 py-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h4 className="font-garamound text-lg font-bold text-zinc-950 leading-tight truncate">
+                          {log.variant?.product?.name ?? "Unknown product"}
+                        </h4>
+                        <p className="text-xs font-courier tracking-wide text-zinc-400 mt-1 truncate">
+                          {log.variant?.sku} · {log.variant?.color} / {log.variant?.size}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5 text-xs font-courier font-bold uppercase tracking-wider flex-shrink-0",
+                          log.type === "IN" ? "text-emerald-600" : "text-[#C23A3A]"
+                        )}
+                      >
+                        {log.type === "IN" ? (
+                          <ArrowUpCircle size={14} />
+                        ) : (
+                          <ArrowDownCircle size={14} />
+                        )}
+                        {log.type}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      <div>
+                        <p className="text-[10px] font-courier font-bold uppercase tracking-wider text-zinc-400">
+                          Reason
+                        </p>
+                        <p className="text-xs font-courier text-zinc-600 uppercase tracking-wide mt-0.5">
+                          {log.reason.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-courier font-bold uppercase tracking-wider text-zinc-400">
+                          Stock Change
+                        </p>
+                        <p className="text-sm font-semibold text-zinc-900 mt-0.5">
+                          {log.previousStock} → {log.newStock}{" "}
+                          <span className="text-[10px] font-courier text-zinc-400 uppercase tracking-wide">
+                            (Qty {log.quantity})
+                          </span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-courier font-bold uppercase tracking-wider text-zinc-400">
+                          Reference
+                        </p>
+                        <p className="text-xs font-courier text-zinc-500 mt-0.5">
+                          {log.referenceType ? (
+                            <>
+                              {log.referenceType}
+                              {log.referenceId && ` · ${log.referenceId.slice(0, 8)}…`}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-courier font-bold uppercase tracking-wider text-zinc-400">
+                          Date
+                        </p>
+                        <p className="text-xs font-courier text-zinc-500 mt-0.5">
+                          {new Date(log.createdAt).toLocaleDateString("en-NG", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}{" "}
+                          {new Date(log.createdAt).toLocaleTimeString("en-NG", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -343,6 +462,13 @@ export default function InventoryLogPage() {
             <span className="text-xs font-courier tracking-wide text-zinc-400">
               SHOWING {logs.length} OF {pagination?.total ?? 0}
             </span>
+            <PageSizeSelect
+              value={limit}
+              onChange={(v) => {
+                setLimit(v);
+                setPage(1);
+              }}
+            />
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}

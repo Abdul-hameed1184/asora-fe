@@ -17,6 +17,7 @@ import type { Variant } from "@/lib/stores/useProductDrawerStore";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
 import { useUploadImages } from "@/hooks/useUploadImages";
+import CategoryManagerModal from "./CategoryManagerModal";
 import type {
   CreateProductPayload,
   UpdateProductPayload,
@@ -27,7 +28,7 @@ import type {
 // Canonical variant size options — must match the backend Zod enum exactly
 // (backend/src/validations/product.validation.ts)
 // ---------------------------------------------------------------------------
-const VARIANT_SIZES = ["XS", "S", "M", "L", "XL"] as const;
+export const VARIANT_SIZES = ["XS", "S", "M", "L", "XL"] as const;
 
 // ---------------------------------------------------------------------------
 // Editable variant row — keeps numbers as strings for input binding
@@ -101,6 +102,7 @@ export default function ProductDrawer() {
   );
   const [isFeatured, setIsFeatured] = useState(false);
   const [variants, setVariants] = useState<EditableVariant[]>([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // ── Mutation-level / client-side validation error to surface in the UI ───
   const [formError, setFormError] = useState<string | null>(null);
@@ -543,7 +545,16 @@ export default function ProductDrawer() {
 
               {/* Category */}
               <div>
-                <label className={labelCls}>Category</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className={cn(labelCls, "mb-0")}>Category</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="text-[#C99A36] hover:text-[#B0852E] transition-colors"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
                 <select
                   required
                   value={categoryId}
@@ -825,6 +836,13 @@ export default function ProductDrawer() {
           </div>
         </div>
       </div>
+
+      <CategoryManagerModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
+        onCreated={(category) => setCategoryId(category.id)}
+      />
     </>
   );
 }
