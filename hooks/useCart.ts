@@ -36,7 +36,7 @@ export function useGetCart() {
 
 export function useAddToCart() {
   const router = useRouter();
-  const { isAuthenticated, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, _hasHydrated, user } = useAuthStore();
 
   const { mutate, isPending, error } = useApiMutation<
     ApiSuccess<CartItem>,
@@ -50,6 +50,10 @@ export function useAddToCart() {
     if (!_hasHydrated || !isAuthenticated) {
       toast.error("Please log in to add items to your cart");
       router.push("/login");
+      return;
+    }
+    if (!user?.isVerified) {
+      toast.error("Please verify your email to add items to your cart");
       return;
     }
     mutate(payload, {

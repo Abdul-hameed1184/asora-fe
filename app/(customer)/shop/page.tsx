@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Heart, Loader2, RefreshCw, PackageSearch } from "lucide-react";
 import { useWishlist } from "@/hooks/useWishlist";
 import { Button } from "@/components/ui/button";
@@ -36,9 +37,10 @@ const SORT_OPTIONS = [
   { value: "name_asc", label: "Name: A–Z", sortBy: "name" as const, sortOrder: "asc" as const },
 ];
 
-export default function ShopPage() {
+function ShopPageContent() {
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(() => searchParams.get("category") ?? "");
   const [color, setColor] = useState("");
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(200000);
@@ -76,7 +78,7 @@ export default function ShopPage() {
     });
 
   const {
-    data: categories = [],
+    data: categories,
     isPending: categoriesLoading,
   } = useApiQuery<Category[]>({
     queryKey: ["categories"],
@@ -230,7 +232,7 @@ export default function ShopPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {categories.map((cat) => (
+                    {(categories ?? []).map((cat) => (
                       <label key={cat.id} className="flex items-center gap-3 cursor-pointer">
                         <input
                           type="checkbox"
@@ -241,7 +243,7 @@ export default function ShopPage() {
                         <span className="text-gray-700">{cat.name}</span>
                       </label>
                     ))}
-                    {categories.length === 0 && (
+                    {(categories ?? []).length === 0 && (
                       <p className="text-sm text-gray-400">No categories found</p>
                     )}
                   </div>
@@ -580,5 +582,13 @@ export default function ShopPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense fallback={null}>
+      <ShopPageContent />
+    </Suspense>
   );
 }

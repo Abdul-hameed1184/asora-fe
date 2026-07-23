@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, Heart, ShoppingBag, User, Search, Bell, LogOut } from "lucide-react";
+import { Menu, X, Heart, ShoppingBag, User, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { useRouter } from "next/navigation";
 
@@ -34,9 +35,7 @@ export function Navbar() {
           <ShoppingBag className="w-5 h-5 text-gray-700" />
         </button>
       </Link>
-      <button className="p-2 hover:bg-gray-100 rounded-full transition">
-        <Bell className="w-5 h-5 text-gray-700" />
-      </button>
+      <NotificationBell />
       <Link href="/profile">
         <button className="p-2 hover:bg-gray-100 rounded-full transition">
           <User className="w-5 h-5 text-gray-700" />
@@ -55,14 +54,12 @@ export function Navbar() {
       <button className="p-2 hover:bg-gray-100 rounded-full transition">
         <Search className="w-5 h-5 text-gray-700" />
       </button>
-      <button className="p-2 hover:bg-gray-100 rounded-full transition">
-        <Heart className="w-5 h-5 text-gray-700" />
-      </button>
-      <button className="p-2 hover:bg-gray-100 rounded-full transition">
-        <ShoppingBag className="w-5 h-5 text-gray-700" />
-      </button>
+  
       <Link href="/login">
         <Button variant="outline">Sign In</Button>
+      </Link>
+      <Link href="/register">
+        <Button variant="default" className="text-white ">Register</Button>
       </Link>
     </div>
   );
@@ -74,7 +71,7 @@ export function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex-shrink-0">
             <span className="text-2xl font-serif font-bold text-primary font-courier">
-              &apos; Aṣora
+              ÀṢỌ́RA
             </span>
           </Link>
 
@@ -86,9 +83,11 @@ export function Navbar() {
             <Link href="/shop" className="text-gray-700 hover:text-primary transition">
               Shop
             </Link>
-            <Link href="/orders" className="text-gray-700 hover:text-primary transition">
-              Orders
-            </Link>
+            {user ? (
+              <Link href="/orders" className="text-gray-700 hover:text-primary transition">
+                Orders
+              </Link>
+            ) : null}
           </div>
 
           {authActions}

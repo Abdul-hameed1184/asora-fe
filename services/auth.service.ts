@@ -19,6 +19,10 @@ export class AuthService {
     return apiClient.get<ApiSuccess<User>>("/auth/me");
   }
 
+  static resendVerification() {
+    return apiClient.post<ApiSuccess<null>>("/auth/resend-verification");
+  }
+
   // Kept for explicit refresh calls; the client interceptor also calls this
   // internally via its own bare instance to avoid circular calls.
   static refreshToken() {

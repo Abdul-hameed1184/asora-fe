@@ -86,7 +86,7 @@ export interface ProductFilters {
   color?: string;
   size?: string;
   featured?: boolean;
-  sortBy?: "createdAt" | "name" | "basePrice";
+  sortBy?: "createdAt" | "name" | "basePrice" | "soldCount";
   sortOrder?: "asc" | "desc";
   status?: ProductStatus;
 }

@@ -87,6 +87,7 @@ export interface CreateOrderDto {
     shippingCountry: string;
     paymentMethod: PaymentMethod;
     deliveryMethod: "pickup" | "delivery";
+    couponCode?: string;
 }
 
 export interface CheckoutResponse {

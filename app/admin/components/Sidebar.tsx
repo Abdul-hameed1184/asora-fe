@@ -135,71 +135,73 @@ export function Sidebar() {
                         {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
                     </button>
                 </div>
-            <div className="text-center">
-                <h1 className="text-[36px] font-serif text-[#D5A53B] leading-none">
-                    `&apos; Aṣora Clothiers
-                </h1>
+                <div className="text-center">
+                    <h1 className="text-[36px] font-serif text-[#D5A53B] leading-none">
+                        `ÀṢỌ́RA Clothiers
+                    </h1>
 
-                <p className="mt-3 text-gray-300 text-lg">
-                    Management Portal
-                </p>
-            </div>
-
-            {/* Profile */}
-            <div className="mt-14 flex flex-col items-center">
-
-                <div className="h-28 w-28 rounded-full border-2 border-[#C79A35] p-1">
-                    <img
-                        src="/profile.jpg"
-                        alt="profile"
-                        className="h-full w-full rounded-full object-cover"
-                    />
+                    <p className="mt-3 text-gray-300 text-lg">
+                        Management Portal
+                    </p>
                 </div>
 
-                <h2 className="mt-5 text-2xl font-serif text-[#E5C16A]">
-                    {displayName}
-                </h2>
+                {/* Profile */}
+                <div className="mt-14 flex flex-col items-center">
 
-                <p className="mt-1 text-[11px] tracking-[4px] uppercase text-gray-400">
-                    {displayRole}
-                </p>
-            </div>
+                    <div className="h-28 w-28 rounded-full border-2 border-[#C79A35] p-1">
+                        <img
+                            src="/profile.jpg"
+                            alt="profile"
+                            className="h-full w-full rounded-full object-cover"
+                        />
+                    </div>
 
-            <nav className="mt-14 flex-1 space-y-4">
+                    <h2 className="mt-5 text-2xl font-serif text-[#E5C16A]">
+                        {displayName}
+                    </h2>
 
-                {navigation.map((item) => {
-                    const active =
-                        pathname === item.href ||
-                        pathname.startsWith(item.href + "/");
+                    <p className="mt-1 text-[11px] tracking-[4px] uppercase text-gray-400">
+                        {displayRole}
+                    </p>
+                </div>
 
-                    const Icon = item.icon;
+                <nav className="mt-14 flex-1 overflow-y-auto space-y-4">
 
-                    return (
-                        <Link
-                            key={item.title}
-                            href={item.href}
-                            className={clsx(
-                                "flex items-center gap-4 rounded-full px-5 py-4 transition-all duration-300",
-                                active
-                                    ? "bg-[#C99A36] text-[#262626]"
-                                    : "text-gray-200 hover:bg-white/5"
-                            )}
-                        >
-                            <Icon size={22} strokeWidth={1.8} />
+                    {navigation.map((item) => {
+                        const active =
+                            item.href === "/admin"
+                                ? pathname === "/admin"
+                                : pathname === item.href ||
+                                pathname.startsWith(item.href + "/");
 
-                            <span className="text-xl">
-                                {item.title}
-                            </span>
-                        </Link>
-                    );
-                })}
-            </nav>
+                        const Icon = item.icon;
 
-            <div className="pt-6 border-t border-white/10">
+                        return (
+                            <Link
+                                key={item.title}
+                                href={item.href}
+                                className={clsx(
+                                    "flex items-center gap-4 rounded-full px-5 py-4 transition-all duration-300",
+                                    active
+                                        ? "bg-[#C99A36] text-[#262626]"
+                                        : "text-gray-200 hover:bg-white/5"
+                                )}
+                            >
+                                <Icon size={22} strokeWidth={1.8} />
 
-                <button
-                    onClick={handleLogout}
-                    className="
+                                <span className="text-xl">
+                                    {item.title}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                <div className="pt-6 border-t border-white/10 flex-shrink-0">
+
+                    <button
+                        onClick={handleLogout}
+                        className="
             w-full
             rounded-full
             border
@@ -214,15 +216,15 @@ export function Sidebar() {
             hover:bg-[#C99A36]
             hover:text-black
           "
-                >
-                    <LogOut size={22} />
+                    >
+                        <LogOut size={22} />
 
-                    <span className="text-lg font-medium">
-                        Sign Out
-                    </span>
-                </button>
+                        <span className="text-lg font-medium">
+                            Sign Out
+                        </span>
+                    </button>
 
-            </div>
+                </div>
             </aside>
         </>
     );

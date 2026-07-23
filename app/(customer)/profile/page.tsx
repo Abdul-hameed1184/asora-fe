@@ -8,17 +8,22 @@ import {
   Shield,
   Edit2,
   CheckCircle2,
+  AlertCircle,
   MapPin,
   Plus,
   Trash2,
   Pencil,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { UserService } from "@/services/user.service";
+import { SettingsService } from "@/services/settings.service";
+import { AuthService } from "@/services/auth.service";
 import { QUERY_KEYS } from "@/hooks/queryKeys";
 import type { Address, CreateAddressDto, UpdateProfileDto, User as UserProfile } from "@/types/user.type";
+import type { UserSettings, UpdateUserSettingsDto } from "@/types/settings.types";
 import type { ApiSuccess } from "@/types/api.types";
 
 interface ProfileForm {
@@ -120,6 +125,36 @@ export default function ProfilePage() {
     UpdateProfileDto
   >({
     mutationFn: (data) => UserService.updateProfile(data),
+  });
+
+  const { mutate: resendVerification, isPending: resendingVerification } = useApiMutation<
+    unknown,
+    void
+  >({
+    mutationFn: () => AuthService.resendVerification(),
+  });
+
+  const handleResendVerification = () => {
+    resendVerification(undefined, {
+      onSuccess: () => toast.success("Verification email sent — please check your inbox."),
+    });
+  };
+
+  // ── Notification settings ───────────────────────────────────────────────────
+  const { data: settingsData } = useApiQuery<ApiSuccess<UserSettings>>({
+    queryKey: QUERY_KEYS.settings,
+    queryFn: () => SettingsService.getSettings(),
+    enabled: !!user,
+  });
+
+  const settings = settingsData?.data;
+
+  const { mutate: updateSettings, isPending: updatingSettings } = useApiMutation<
+    ApiSuccess<UserSettings>,
+    UpdateUserSettingsDto
+  >({
+    mutationFn: (data) => SettingsService.updateSettings(data),
+    invalidateKeys: [QUERY_KEYS.settings],
   });
 
   if (!hasHydrated) {
@@ -411,6 +446,29 @@ export default function ProfilePage() {
                   Change Password
                 </button>
               </div>
+
+              {!user.isVerified && (
+                <div className="flex items-center justify-between flex-wrap gap-4 mt-6 pt-6 border-t border-border">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-alert flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-garamound text-base text-foreground mb-1">
+                        Email not verified
+                      </p>
+                      <p className="font-courier text-[9px] text-foreground/40">
+                        Verify your email to unlock cart and checkout
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleResendVerification}
+                    disabled={resendingVerification}
+                    className="font-courier text-[9px] tracking-[0.15em] uppercase text-primary border-b border-primary pb-0.5 hover:text-primary/70 hover:border-primary/70 transition-colors disabled:opacity-50"
+                  >
+                    {resendingVerification ? "Sending…" : "Resend Verification Email"}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Addresses */}
@@ -560,28 +618,34 @@ export default function ProfilePage() {
                 </h3>
               </div>
               <div className="space-y-5">
-                {[
-                  { label: "Order updates", desc: "Get notified when your order status changes" },
-                  { label: "New arrivals", desc: "Be the first to know about new collections" },
-                  { label: "Exclusive offers", desc: "Receive personalised atelier promotions" },
-                ].map((pref) => (
+                {(
+                  [
+                    { label: "Order updates", desc: "Get notified when your order status changes", field: "orderUpdates" },
+                    { label: "New arrivals", desc: "Be the first to know about new collections", field: "newArrivals" },
+                    { label: "Exclusive offers", desc: "Receive personalised atelier promotions", field: "promotionalNotifications" },
+                  ] as const
+                ).map((pref) => (
                   <label
                     key={pref.label}
                     className="flex items-start justify-between gap-4 cursor-pointer group"
                   >
                     <div>
-                      <p className="font-courier text-[10px] tracking-[0.1em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
+                      <p className="font-courier text-sm tracking-[0.05em] uppercase text-foreground group-hover:text-primary transition-colors">
                         {pref.label}
                       </p>
-                      <p className="text-foreground/40 text-xs mt-0.5 leading-relaxed">
+                      <p className="text-foreground/60 text-sm mt-0.5 leading-relaxed">
                         {pref.desc}
                       </p>
                     </div>
                     <div className="flex-shrink-0 mt-0.5">
                       <input
                         type="checkbox"
-                        defaultChecked
-                        className="w-4 h-4 accent-primary cursor-pointer"
+                        checked={settings?.[pref.field] ?? true}
+                        disabled={updatingSettings}
+                        onChange={() =>
+                          updateSettings({ [pref.field]: !(settings?.[pref.field] ?? true) })
+                        }
+                        className="w-4 h-4 accent-primary cursor-pointer disabled:opacity-50"
                       />
                     </div>
                   </label>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Share2, Check, Truck, Shield, RefreshCw, ChevronRight } from "lucide-react";
@@ -12,6 +12,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAddToCart } from "@/hooks/useCart";
 import { Product, fetchPublicProduct } from "@/lib/api/products.api";
 import { useWishlist } from "@/hooks/useWishlist";
+import { recordProductView } from "@/hooks/useRecentlyViewed";
 import toast from "react-hot-toast";
 
 type Tab = "description" | "care" | "size";
@@ -41,6 +42,10 @@ export default function ProductPage() {
 
   const { submit: addToCart, isPending: addingToCart } = useAddToCart();
   const { toggleWishlist, isWishlisted, isPending: wishlistPending } = useWishlist();
+
+  useEffect(() => {
+    if (product?.id) recordProductView(product.id);
+  }, [product?.id]);
 
   if (isPending) return <ProductSkeleton />;
 

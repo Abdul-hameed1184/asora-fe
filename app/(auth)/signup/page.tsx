@@ -52,7 +52,7 @@ export default function SignupPage() {
           <div className="text-center max-w-md">
             <div className="mb-8">
               <span className="text-4xl font-serif font-bold text-primary">
-                &apos; Aṣora Clothiers
+                ÀṢỌ́RA Clothiers
               </span>
             </div>
             <h2 className="text-3xl font-serif font-bold mb-4 italic">
@@ -73,7 +73,7 @@ export default function SignupPage() {
             {/* Logo Mobile */}
             <div className="md:hidden text-center mb-8">
               <span className="text-3xl font-serif font-bold text-primary">
-                &apos; Aṣora Clothiers
+                ÀṢỌ́RA Clothiers
               </span>
             </div>
 

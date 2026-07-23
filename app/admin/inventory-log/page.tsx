@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Search,
-  Bell,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
   ArrowDownCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuthStore } from "@/lib/stores/useAuthStore";
 import { useInventoryLogs } from "@/hooks/useInventoryLogs";
 import type {
@@ -113,10 +113,7 @@ export default function InventoryLogPage() {
             </div>
           )}
 
-          <button className="relative p-2 rounded-full hover:bg-zinc-100 transition-colors text-zinc-700">
-            <Bell size={22} strokeWidth={1.8} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#C99A36] rounded-full" />
-          </button>
+          <NotificationBell />
 
           <div className="flex items-center gap-3">
             <div className="text-right">

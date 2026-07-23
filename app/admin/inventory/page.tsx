@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Search,
-  Bell,
   RotateCcw,
   Plus,
   MoreVertical,
@@ -13,6 +12,7 @@ import {
   PackageOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import ProductDrawer, { VARIANT_SIZES } from "@/app/admin/components/ProductDrawer";
 import { useProductDrawerStore } from "@/lib/stores/useProductDrawerStore";
 import { useAdminProducts, useDeleteProduct } from "@/hooks/useProducts";
@@ -100,10 +100,7 @@ export default function InventoryPage() {
             </div>
           )}
 
-          <button className="relative p-2 rounded-full hover:bg-zinc-100 transition-colors text-zinc-700">
-            <Bell size={22} strokeWidth={1.8} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#C99A36] rounded-full" />
-          </button>
+          <NotificationBell />
 
           <div className="flex items-center gap-3">
             <div className="text-right">

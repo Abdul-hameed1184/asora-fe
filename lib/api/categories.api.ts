@@ -1,8 +1,10 @@
 import { apiClient } from "@/lib/api/client";
+import { ApiSuccess } from "@/types/api.types";
 import { Category } from "@/types/category.types";
 
 export async function fetchCategories(): Promise<Category[]> {
-  // Response shape: { data: [Category[], number] }
-  const res = await apiClient.get<{ data: [Category[], number] }>("/categories");
-  return res.data.data[0] ?? [];
+  const res = await apiClient.get<ApiSuccess<{ data: Category[]; total: number }>>(
+    "/categories"
+  );
+  return res.data.data.data ?? [];
 }

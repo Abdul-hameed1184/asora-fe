@@ -28,4 +28,6 @@ export const QUERY_KEYS = {
 
   wishlist: ["wishlist"] as const,
 
+  settings: ["settings"] as const,
+
 };
